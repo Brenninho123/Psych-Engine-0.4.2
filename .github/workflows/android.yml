@@ -33,12 +33,12 @@ jobs:
       - name: Install libraries
         run: |
           haxelib setup ~/haxelib
-          haxelib git    lime         https://github.com/FunkinCrew/lime master --quiet
-          haxelib install openfl       9.3.3  --quiet
-          haxelib install flixel       4.11.0 --quiet
+          haxelib git     lime          https://github.com/FunkinCrew/lime master --quiet
+          haxelib install openfl        9.3.3  --quiet
+          haxelib install flixel        4.11.0 --quiet
           haxelib install flixel-addons 2.11.0 --quiet
-          haxelib install flixel-ui           --quiet
-          haxelib install hscript             --quiet
+          haxelib install flixel-ui            --quiet
+          haxelib install hscript              --quiet
           haxelib run lime setup openfl
 
       - name: Cache NDK
@@ -68,12 +68,10 @@ jobs:
         run: haxelib run lime build android -release
 
       - name: Locate APK
-        id: apk
         run: |
           FILE=$(find export/release/android/bin -name "*.apk" \
             ! -name "*unaligned*" ! -name "*unsigned*" | head -1)
-          echo "path=$FILE" >> $GITHUB_OUTPUT
-          echo "name=$(basename $FILE)" >> $GITHUB_OUTPUT
+          echo "APK_PATH=$FILE" >> $GITHUB_ENV
 
       - name: Sign APK
         if: ${{ secrets.KEYSTORE_BASE64 != '' }}
@@ -85,23 +83,22 @@ jobs:
             --ks-pass "pass:${{ secrets.STORE_PASSWORD }}" \
             --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
             --out signed-PsychEngine.apk \
-            "${{ steps.apk.outputs.path }}"
-          echo "path=signed-PsychEngine.apk" >> $GITHUB_OUTPUT
-        id: signed
+            "$APK_PATH"
+          rm -f release.jks
+          echo "APK_PATH=signed-PsychEngine.apk" >> $GITHUB_ENV
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: PsychEngine-0.4.2-Android
-          path: ${{ steps.signed.outputs.path || steps.apk.outputs.path }}
+          path: ${{ env.APK_PATH }}
           retention-days: 14
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.signed.outputs.path || steps.apk.outputs.path }}
+          files: ${{ env.APK_PATH }}
           name: "Psych Engine 0.4.2 Android — ${{ github.ref_name }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
