@@ -33,9 +33,7 @@ jobs:
       - name: Install libraries
         run: |
           haxelib setup ~/haxelib
-          haxelib install lime          8.3.1  --quiet
-          haxelib git     lime          https://github.com/FunkinCrew/lime master --quiet
-          cp -r ~/haxelib/lime/8,3,1/ndll ~/haxelib/lime/git/
+          haxelib install lime          8.3.2  --quiet
           haxelib install openfl        9.3.3  --quiet
           haxelib install flixel        4.11.0 --quiet
           haxelib install flixel-addons 2.11.0 --quiet
