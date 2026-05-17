@@ -270,7 +270,6 @@ class PlayState extends MusicBeatState
 		FlxG.cameras.add(camOther);
 		grpNoteSplashes = new FlxTypedGroup<NoteSplash>();
 
-		FlxCamera.defaultCameras = [camGame];
 		CustomFadeTransition.nextCamera = camOther;
 
 		persistentUpdate = true;
@@ -1421,8 +1420,11 @@ class PlayState extends MusicBeatState
 
 		var sName:String = Paths.formatToSongPath(SONG.song);
 		var evFile:String = Paths.json(sName + '/events');
-		#if sys
+		#if (sys && MODS_ALLOWED)
 		if (FileSystem.exists(Paths.modsJson(sName + '/events')) || FileSystem.exists(evFile))
+		{
+		#elseif sys
+		if (FileSystem.exists(evFile))
 		{
 		#else
 		if (OpenFlAssets.exists(evFile))
