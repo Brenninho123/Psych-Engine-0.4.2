@@ -31,17 +31,16 @@ class Hitbox extends FlxSpriteGroup
 	public function new(alpha:Float = 0.6)
 	{
 		super();
-
 		scrollFactor.set(0, 0);
 
 		var bW:Int = Std.int(FlxG.width / 4);
 		var bH:Int = Std.int(FlxG.height / 4);
 		var bY:Int = FlxG.height - bH;
 
-		buttonLeft  = new HitboxButton(0,          bY, bW, bH, FlxColor.fromRGB(194, 114, 255));
-		buttonDown  = new HitboxButton(bW,         bY, bW, bH, FlxColor.fromRGB(0,   255, 255));
-		buttonUp    = new HitboxButton(bW * 2,     bY, bW, bH, FlxColor.fromRGB(18,  250, 5));
-		buttonRight = new HitboxButton(bW * 3,     bY, bW, bH, FlxColor.fromRGB(249, 57,  63));
+		buttonLeft  = new HitboxButton(0,        bY, bW, bH, FlxColor.fromRGB(194, 114, 255));
+		buttonDown  = new HitboxButton(bW,       bY, bW, bH, FlxColor.fromRGB(0,   255, 255));
+		buttonUp    = new HitboxButton(bW * 2,   bY, bW, bH, FlxColor.fromRGB(18,  250, 5));
+		buttonRight = new HitboxButton(bW * 3,   bY, bW, bH, FlxColor.fromRGB(249, 57,  63));
 
 		for (btn in [buttonLeft, buttonDown, buttonUp, buttonRight])
 		{
@@ -56,7 +55,6 @@ class Hitbox extends FlxSpriteGroup
 		buttonDown.updateState();
 		buttonUp.updateState();
 		buttonRight.updateState();
-
 		super.update(elapsed);
 	}
 
@@ -86,8 +84,6 @@ class HitboxButton extends FlxSprite
 	var _pressAlpha:Float;
 	var _idleAlpha:Float  = 0.6;
 
-	static var _point:FlxPoint = FlxPoint.get();
-
 	public function new(x:Float, y:Float, w:Int, h:Int, color:FlxColor)
 	{
 		super(x, y);
@@ -99,37 +95,32 @@ class HitboxButton extends FlxSprite
 	public function updateState():Void
 	{
 		_prevPressed = pressed;
-		pressed = false;
+		pressed      = false;
 
+		var pt:FlxPoint = FlxPoint.weak();
 		for (touch in FlxG.touches.list)
 		{
 			if (touch.pressed)
 			{
-				_point.set(touch.screenX, touch.screenY);
-				if (overlapsPoint(_point, true))
+				pt.set(touch.screenX, touch.screenY);
+				if (overlapsPoint(pt, true))
 				{
 					pressed = true;
 					break;
 				}
 			}
 		}
+		pt.putWeak();
 
-		justPressed   = pressed  && !_prevPressed;
-		justReleased  = !pressed && _prevPressed;
-
-		alpha = pressed ? _pressAlpha : _idleAlpha;
+		justPressed  = pressed  && !_prevPressed;
+		justReleased = !pressed && _prevPressed;
+		alpha        = pressed ? _pressAlpha : _idleAlpha;
 	}
 
 	public function setAlphas(idle:Float, press:Float):Void
 	{
 		_idleAlpha  = idle;
 		_pressAlpha = press;
-		alpha = _idleAlpha;
-	}
-
-	override public function destroy():Void
-	{
-		_point = null;
-		super.destroy();
+		alpha       = _idleAlpha;
 	}
 }
