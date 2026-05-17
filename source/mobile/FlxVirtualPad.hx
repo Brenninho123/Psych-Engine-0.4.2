@@ -166,7 +166,7 @@ class VirtualButton extends FlxSprite
 		{
 			if (touch.pressed)
 			{
-				_pt.set(touch.screenX, touch.screenY);
+				_pt.set(touch.viewX, touch.viewY);
 				if (overlapsPoint(_pt, true))
 				{
 					pressed = true;
