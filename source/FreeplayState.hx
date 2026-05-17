@@ -17,9 +17,6 @@ import lime.utils.Assets;
 import flixel.sound.FlxSound;
 import openfl.utils.Assets as OpenFlAssets;
 import WeekData;
-#if mobile
-import mobile.FlxVirtualPad;
-#end
 
 using StringTools;
 
@@ -49,7 +46,9 @@ class FreeplayState extends MusicBeatState
 	var colorTween:FlxTween;
 
 	#if mobile
-	var virtualPad:FlxVirtualPad;
+	static inline final SWIPE_THRESHOLD:Float = 60;
+	var _touchStartX:Float = 0;
+	var _touchStartY:Float = 0;
 	#end
 
 	override function create()
@@ -132,7 +131,7 @@ class FreeplayState extends MusicBeatState
 		add(scoreText);
 
 		if (curSelected >= songs.length) curSelected = 0;
-		bg.color     = songs[curSelected].color;
+		bg.color      = songs[curSelected].color;
 		intendedColor = bg.color;
 		changeSelection();
 		changeDiff();
@@ -150,11 +149,6 @@ class FreeplayState extends MusicBeatState
 		text.setFormat(Paths.font("vcr.ttf"), 18, FlxColor.WHITE, RIGHT);
 		text.scrollFactor.set();
 		add(text);
-
-		#if mobile
-		virtualPad = new FlxVirtualPad(UP_DOWN, A_B);
-		add(virtualPad);
-		#end
 
 		super.create();
 	}
@@ -187,16 +181,47 @@ class FreeplayState extends MusicBeatState
 		scoreText.text = 'PERSONAL BEST: ' + lerpScore + ' (' + Math.floor(lerpRating * 100) + '%)';
 		positionHighscore();
 
-		var upP:Bool     = controls.UI_UP_P;
-		var downP:Bool   = controls.UI_DOWN_P;
+		var upP:Bool      = controls.UI_UP_P;
+		var downP:Bool    = controls.UI_DOWN_P;
 		var accepted:Bool = controls.ACCEPT;
-		var back:Bool    = controls.BACK;
+		var back:Bool     = controls.BACK;
+		var leftP:Bool    = controls.UI_LEFT_P;
+		var rightP:Bool   = controls.UI_RIGHT_P;
+
+		#if android
+		if (FlxG.android.justReleased.BACK) back = true;
+		#end
 
 		#if mobile
-		if (virtualPad.UP_P)   upP      = true;
-		if (virtualPad.DOWN_P) downP    = true;
-		if (virtualPad.A_P)    accepted = true;
-		if (virtualPad.B_P)    back     = true;
+		for (touch in FlxG.touches.list)
+		{
+			if (touch.justPressed)
+			{
+				_touchStartX = touch.viewX;
+				_touchStartY = touch.viewY;
+			}
+
+			if (touch.justReleased)
+			{
+				var dx:Float = touch.viewX - _touchStartX;
+				var dy:Float = touch.viewY - _touchStartY;
+
+				if (Math.abs(dy) >= SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx))
+				{
+					if (dy < 0) upP   = true;
+					else         downP = true;
+				}
+				else if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy))
+				{
+					if (dx > 0) rightP = true;
+					else         back   = true;
+				}
+				else
+				{
+					accepted = true;
+				}
+			}
+		}
 		#end
 
 		var shiftMult:Int = 1;
@@ -207,8 +232,8 @@ class FreeplayState extends MusicBeatState
 		if (upP)   changeSelection(-shiftMult);
 		if (downP) changeSelection(shiftMult);
 
-		if (controls.UI_LEFT_P)  changeDiff(-1);
-		if (controls.UI_RIGHT_P) changeDiff(1);
+		if (leftP)  changeDiff(-1);
+		if (rightP) changeDiff(1);
 
 		if (back)
 		{
