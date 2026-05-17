@@ -1816,7 +1816,7 @@ class PlayState extends MusicBeatState
 		#if mobile
 		for (touch in FlxG.touches.list)
 		{
-			if (touch.justPressed && touch.screenY < 50)
+			if (touch.justPressed && touch.viewY < 50)
 			{
 				pausePressed = true;
 				break;
