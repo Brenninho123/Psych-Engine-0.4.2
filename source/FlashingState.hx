@@ -10,12 +10,20 @@ import lime.app.Application;
 import flixel.addons.transition.FlxTransitionableState;
 import flixel.tweens.FlxTween;
 import flixel.util.FlxTimer;
+#if mobile
+import mobile.FlxVirtualPad;
+#end
 
 class FlashingState extends MusicBeatState
 {
 	public static var leftState:Bool = false;
 
 	var warnText:FlxText;
+
+	#if mobile
+	var virtualPad:FlxVirtualPad;
+	#end
+
 	override function create()
 	{
 		super.create();
@@ -33,29 +41,50 @@ class FlashingState extends MusicBeatState
 		warnText.setFormat("VCR OSD Mono", 32, FlxColor.WHITE, CENTER);
 		warnText.screenCenter(Y);
 		add(warnText);
+
+		#if mobile
+		virtualPad = new FlxVirtualPad(NONE, A_B);
+		add(virtualPad);
+		#end
 	}
 
 	override function update(elapsed:Float)
 	{
-		if(!leftState) {
-			var back:Bool = controls.BACK;
-			if (controls.ACCEPT || back) {
+		if (!leftState)
+		{
+			var accept:Bool = controls.ACCEPT;
+			var back:Bool   = controls.BACK;
+
+			#if mobile
+			if (virtualPad.A_P) accept = true;
+			if (virtualPad.B_P) back   = true;
+			#end
+
+			if (accept || back)
+			{
 				leftState = true;
-				FlxTransitionableState.skipNextTransIn = true;
+				FlxTransitionableState.skipNextTransIn  = true;
 				FlxTransitionableState.skipNextTransOut = true;
-				if(!back) {
+
+				if (!back)
+				{
 					ClientPrefs.flashing = false;
 					ClientPrefs.saveSettings();
 					FlxG.sound.play(Paths.sound('confirmMenu'));
-					FlxFlicker.flicker(warnText, 1, 0.1, false, true, function(flk:FlxFlicker) {
-						new FlxTimer().start(0.5, function (tmr:FlxTimer) {
+					FlxFlicker.flicker(warnText, 1, 0.1, false, true, function(flk:FlxFlicker)
+					{
+						new FlxTimer().start(0.5, function(tmr:FlxTimer)
+						{
 							MusicBeatState.switchState(new TitleState());
 						});
 					});
-				} else {
+				}
+				else
+				{
 					FlxG.sound.play(Paths.sound('cancelMenu'));
 					FlxTween.tween(warnText, {alpha: 0}, 1, {
-						onComplete: function (twn:FlxTween) {
+						onComplete: function(twn:FlxTween)
+						{
 							MusicBeatState.switchState(new TitleState());
 						}
 					});
