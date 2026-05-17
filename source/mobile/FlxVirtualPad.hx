@@ -5,6 +5,21 @@ import flixel.FlxSprite;
 import flixel.group.FlxSpriteGroup;
 import flixel.math.FlxPoint;
 
+enum VirtualDPadMode
+{
+	FULL;
+	UP_DOWN;
+	LEFT_RIGHT;
+	NONE;
+}
+
+enum VirtualActionMode
+{
+	A_B;
+	A;
+	NONE;
+}
+
 class FlxVirtualPad extends FlxSpriteGroup
 {
 	public var buttonLeft:VirtualButton;
@@ -33,62 +48,89 @@ class FlxVirtualPad extends FlxSpriteGroup
 	public var UP_R(get, never):Bool;
 	public var RIGHT_R(get, never):Bool;
 
-	public function new(alpha:Float = 0.75)
+	static inline final SC:Float  = 0.5;
+	static inline final BW:Float  = 396 * SC;
+	static inline final BH:Float  = 127 * SC;
+	static inline final PAD:Float = 8;
+
+	public function new(dpad:VirtualDPadMode = FULL, action:VirtualActionMode = A_B, alpha:Float = 0.75)
 	{
 		super();
-
 		scrollFactor.set(0, 0);
 
-		final sc:Float  = 0.5;
-		final bW:Float  = 396 * sc;
-		final bH:Float  = 127 * sc;
-		final bY:Float  = FlxG.height - bH - 8;
-		final sx:Float  = (FlxG.width - bW * 6) / 2;
+		switch (dpad)
+		{
+			case FULL:
+				final sx:Float = (FlxG.width - BW * 4) / 2;
+				final by:Float = FlxG.height - BH - PAD;
+				buttonLeft  = _make(sx,          by, 'left',  alpha);
+				buttonDown  = _make(sx + BW,     by, 'down',  alpha);
+				buttonUp    = _make(sx + BW * 2, by, 'up',    alpha);
+				buttonRight = _make(sx + BW * 3, by, 'right', alpha);
 
-		buttonB     = new VirtualButton(sx,          bY, 'b',     sc, alpha);
-		buttonLeft  = new VirtualButton(sx + bW,     bY, 'left',  sc, alpha);
-		buttonDown  = new VirtualButton(sx + bW * 2, bY, 'down',  sc, alpha);
-		buttonUp    = new VirtualButton(sx + bW * 3, bY, 'up',    sc, alpha);
-		buttonRight = new VirtualButton(sx + bW * 4, bY, 'right', sc, alpha);
-		buttonA     = new VirtualButton(sx + bW * 5, bY, 'a',     sc, alpha);
+			case UP_DOWN:
+				final bx:Float = PAD;
+				buttonDown = _make(bx, FlxG.height - BH - PAD,          'down', alpha);
+				buttonUp   = _make(bx, FlxG.height - BH * 2 - PAD * 2, 'up',   alpha);
 
-		add(buttonB);
-		add(buttonLeft);
-		add(buttonDown);
-		add(buttonUp);
-		add(buttonRight);
-		add(buttonA);
+			case LEFT_RIGHT:
+				final by:Float = FlxG.height - BH - PAD;
+				buttonLeft  = _make(PAD,          by, 'left',  alpha);
+				buttonRight = _make(PAD + BW + 4, by, 'right', alpha);
+
+			case NONE:
+		}
+
+		switch (action)
+		{
+			case A_B:
+				final ax:Float = FlxG.width - BW - PAD;
+				buttonA = _make(ax, FlxG.height - BH - PAD,          'a', alpha);
+				buttonB = _make(ax, FlxG.height - BH * 2 - PAD * 2, 'b', alpha);
+
+			case A:
+				buttonA = _make(FlxG.width - BW - PAD, FlxG.height - BH - PAD, 'a', alpha);
+
+			case NONE:
+		}
+	}
+
+	function _make(x:Float, y:Float, anim:String, alpha:Float):VirtualButton
+	{
+		var btn = new VirtualButton(x, y, anim, SC, alpha);
+		add(btn);
+		return btn;
 	}
 
 	override public function update(elapsed:Float):Void
 	{
-		buttonLeft.updateState();
-		buttonDown.updateState();
-		buttonUp.updateState();
-		buttonRight.updateState();
-		buttonA.updateState();
-		buttonB.updateState();
+		if (buttonLeft  != null) buttonLeft.updateState();
+		if (buttonDown  != null) buttonDown.updateState();
+		if (buttonUp    != null) buttonUp.updateState();
+		if (buttonRight != null) buttonRight.updateState();
+		if (buttonA     != null) buttonA.updateState();
+		if (buttonB     != null) buttonB.updateState();
 		super.update(elapsed);
 	}
 
-	inline function get_LEFT():Bool    return buttonLeft.pressed;
-	inline function get_DOWN():Bool    return buttonDown.pressed;
-	inline function get_UP():Bool      return buttonUp.pressed;
-	inline function get_RIGHT():Bool   return buttonRight.pressed;
-	inline function get_A():Bool       return buttonA.pressed;
-	inline function get_B():Bool       return buttonB.pressed;
+	inline function get_LEFT():Bool    return buttonLeft  != null && buttonLeft.pressed;
+	inline function get_DOWN():Bool    return buttonDown  != null && buttonDown.pressed;
+	inline function get_UP():Bool      return buttonUp    != null && buttonUp.pressed;
+	inline function get_RIGHT():Bool   return buttonRight != null && buttonRight.pressed;
+	inline function get_A():Bool       return buttonA     != null && buttonA.pressed;
+	inline function get_B():Bool       return buttonB     != null && buttonB.pressed;
 
-	inline function get_LEFT_P():Bool  return buttonLeft.justPressed;
-	inline function get_DOWN_P():Bool  return buttonDown.justPressed;
-	inline function get_UP_P():Bool    return buttonUp.justPressed;
-	inline function get_RIGHT_P():Bool return buttonRight.justPressed;
-	inline function get_A_P():Bool     return buttonA.justPressed;
-	inline function get_B_P():Bool     return buttonB.justPressed;
+	inline function get_LEFT_P():Bool  return buttonLeft  != null && buttonLeft.justPressed;
+	inline function get_DOWN_P():Bool  return buttonDown  != null && buttonDown.justPressed;
+	inline function get_UP_P():Bool    return buttonUp    != null && buttonUp.justPressed;
+	inline function get_RIGHT_P():Bool return buttonRight != null && buttonRight.justPressed;
+	inline function get_A_P():Bool     return buttonA     != null && buttonA.justPressed;
+	inline function get_B_P():Bool     return buttonB     != null && buttonB.justPressed;
 
-	inline function get_LEFT_R():Bool  return buttonLeft.justReleased;
-	inline function get_DOWN_R():Bool  return buttonDown.justReleased;
-	inline function get_UP_R():Bool    return buttonUp.justReleased;
-	inline function get_RIGHT_R():Bool return buttonRight.justReleased;
+	inline function get_LEFT_R():Bool  return buttonLeft  != null && buttonLeft.justReleased;
+	inline function get_DOWN_R():Bool  return buttonDown  != null && buttonDown.justReleased;
+	inline function get_UP_R():Bool    return buttonUp    != null && buttonUp.justReleased;
+	inline function get_RIGHT_R():Bool return buttonRight != null && buttonRight.justReleased;
 }
 
 class VirtualButton extends FlxSprite
@@ -97,23 +139,18 @@ class VirtualButton extends FlxSprite
 	public var justPressed:Bool  = false;
 	public var justReleased:Bool = false;
 
-	var _prevPressed:Bool  = false;
+	var _prevPressed:Bool = false;
 	var _idleAlpha:Float;
-	var _animName:String;
 
-	static var _touchPoint:FlxPoint = FlxPoint.get();
+	static var _pt:FlxPoint = FlxPoint.get();
 
 	public function new(x:Float, y:Float, animName:String, sc:Float, idleAlpha:Float)
 	{
 		super(x, y);
-
-		_animName  = animName;
 		_idleAlpha = idleAlpha;
-
 		frames = Paths.getSparrowAtlas('virtualPad', 'shared');
 		animation.addByPrefix('idle', animName, 24, true);
 		animation.play('idle');
-
 		scale.set(sc, sc);
 		updateHitbox();
 		scrollFactor.set(0, 0);
@@ -129,8 +166,8 @@ class VirtualButton extends FlxSprite
 		{
 			if (touch.pressed)
 			{
-				_touchPoint.set(touch.screenX, touch.screenY);
-				if (overlapsPoint(_touchPoint, true))
+				_pt.set(touch.screenX, touch.screenY);
+				if (overlapsPoint(_pt, true))
 				{
 					pressed = true;
 					break;
@@ -145,7 +182,7 @@ class VirtualButton extends FlxSprite
 
 	override public function destroy():Void
 	{
-		_touchPoint = null;
+		_pt = null;
 		super.destroy();
 	}
 }
