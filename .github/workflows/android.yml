@@ -22,7 +22,7 @@ jobs:
 
       - uses: krdlab/setup-haxe@v1
         with:
-          haxe-version: 4.3.4
+          haxe-version: 4.3.7
 
       - name: Cache haxelib
         uses: actions/cache@v4
@@ -35,8 +35,8 @@ jobs:
           haxelib setup ~/haxelib
           haxelib install lime          8.3.2  --quiet
           haxelib install openfl        9.3.3  --quiet
-          haxelib install flixel        4.11.0 --quiet
-          haxelib install flixel-addons 2.11.0 --quiet
+          haxelib install flixel        6.1.2  --quiet
+          haxelib install flixel-addons 4.0.1  --quiet
           haxelib install flixel-ui            --quiet
           haxelib install hscript              --quiet
           haxelib run lime setup openfl
