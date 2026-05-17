@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextureAtlas imagePath="virtualPad.png">
+	<!-- Created using the Spritesheet and XML generator -->
+	<!-- https://uncertainprod.github.io/FNF-Spritesheet-XML-generator-Web -->
+	<SubTexture name="a0000" x="800" y="129" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="b0000" x="400" y="0" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="c0000" x="800" y="387" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="d0000" x="0" y="516" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="default0000" x="0" y="387" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="down0000" x="0" y="0" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="e0000" x="800" y="258" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="f0000" x="0" y="129" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="g0000" x="0" y="258" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="left0000" x="400" y="645" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="r0000" x="0" y="645" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="right0000" x="400" y="387" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="s0000" x="800" y="0" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="up0000" x="400" y="258" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="v0000" x="400" y="516" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="x0000" x="400" y="129" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="y0000" x="800" y="645" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+	<SubTexture name="z0000" x="800" y="516" width="400" height="129" frameX="2" frameY="0" frameWidth="396" frameHeight="127"/>
+</TextureAtlas>
