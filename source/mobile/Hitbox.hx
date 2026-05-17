@@ -102,7 +102,7 @@ class HitboxButton extends FlxSprite
 		{
 			if (touch.pressed)
 			{
-				pt.set(touch.screenX, touch.screenY);
+				pt.set(touch.viewX, touch.viewY);
 				if (overlapsPoint(pt, true))
 				{
 					pressed = true;
