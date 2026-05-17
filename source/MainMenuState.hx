@@ -202,6 +202,7 @@ class MainMenuState extends MusicBeatState
 					else
 					{
 						// Tap: confirmar item selecionado
+						_back   = false;
 						_accept = true;
 					}
 				}
@@ -213,21 +214,18 @@ class MainMenuState extends MusicBeatState
 				FlxG.sound.play(Paths.sound('scrollMenu'));
 				changeItem(-1);
 			}
-
-			if (_down)
+			else if (_down)
 			{
 				FlxG.sound.play(Paths.sound('scrollMenu'));
 				changeItem(1);
 			}
-
-			if (_back)
+			else if (_back)
 			{
 				selectedSomethin = true;
 				FlxG.sound.play(Paths.sound('cancelMenu'));
 				MusicBeatState.switchState(new TitleState());
 			}
-
-			if (_accept)
+			else if (_accept)
 			{
 				if (optionShit[curSelected] == 'donate')
 				{
