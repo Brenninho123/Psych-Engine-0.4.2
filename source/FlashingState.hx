@@ -10,19 +10,12 @@ import lime.app.Application;
 import flixel.addons.transition.FlxTransitionableState;
 import flixel.tweens.FlxTween;
 import flixel.util.FlxTimer;
-#if mobile
-import mobile.FlxVirtualPad;
-#end
 
 class FlashingState extends MusicBeatState
 {
 	public static var leftState:Bool = false;
 
 	var warnText:FlxText;
-
-	#if mobile
-	var virtualPad:FlxVirtualPad;
-	#end
 
 	override function create()
 	{
@@ -41,11 +34,6 @@ class FlashingState extends MusicBeatState
 		warnText.setFormat("VCR OSD Mono", 32, FlxColor.WHITE, CENTER);
 		warnText.screenCenter(Y);
 		add(warnText);
-
-		#if mobile
-		virtualPad = new FlxVirtualPad(NONE, A_B);
-		add(virtualPad);
-		#end
 	}
 
 	override function update(elapsed:Float)
@@ -56,8 +44,19 @@ class FlashingState extends MusicBeatState
 			var back:Bool   = controls.BACK;
 
 			#if mobile
-			if (virtualPad.A_P) accept = true;
-			if (virtualPad.B_P) back   = true;
+			for (touch in FlxG.touches.list)
+			{
+				if (touch.justPressed)
+				{
+					if (touch.viewX < FlxG.width / 2)
+						back   = true;
+					else
+						accept = true;
+				}
+			}
+			#if android
+			if (FlxG.android.justReleased.BACK) back = true;
+			#end
 			#end
 
 			if (accept || back)
