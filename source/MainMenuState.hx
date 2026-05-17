@@ -19,9 +19,6 @@ import flixel.util.FlxColor;
 import lime.app.Application;
 import Achievements;
 import editors.MasterEditorMenu;
-#if mobile
-import mobile.FlxVirtualPad;
-#end
 
 using StringTools;
 
@@ -48,7 +45,10 @@ class MainMenuState extends MusicBeatState
 	var camFollowPos:FlxObject;
 
 	#if mobile
-	var virtualPad:FlxVirtualPad;
+	static inline final SWIPE_THRESHOLD:Float = 60;
+	var _touchStartX:Float = 0;
+	var _touchStartY:Float = 0;
+	var _touchMoved:Bool   = false;
 	#end
 
 	override function create()
@@ -140,12 +140,6 @@ class MainMenuState extends MusicBeatState
 		}
 		#end
 
-		#if mobile
-		virtualPad = new FlxVirtualPad(UP_DOWN, A_B);
-		virtualPad.cameras = [camGame];
-		add(virtualPad);
-		#end
-
 		super.create();
 	}
 
@@ -180,10 +174,38 @@ class MainMenuState extends MusicBeatState
 			var _accept:Bool = controls.ACCEPT;
 
 			#if mobile
-			if (virtualPad.UP_P)   _up     = true;
-			if (virtualPad.DOWN_P) _down   = true;
-			if (virtualPad.B_P)    _back   = true;
-			if (virtualPad.A_P)    _accept = true;
+			for (touch in FlxG.touches.list)
+			{
+				if (touch.justPressed)
+				{
+					_touchStartX = touch.viewX;
+					_touchStartY = touch.viewY;
+					_touchMoved  = false;
+				}
+
+				if (touch.justReleased)
+				{
+					var dx:Float = touch.viewX - _touchStartX;
+					var dy:Float = touch.viewY - _touchStartY;
+
+					if (Math.abs(dy) >= SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx))
+					{
+						// Swipe vertical
+						if (dy < 0) _up   = true;
+						else         _down = true;
+					}
+					else if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy))
+					{
+						// Swipe horizontal: esquerda = voltar
+						if (dx < 0) _back = true;
+					}
+					else
+					{
+						// Tap: confirmar item selecionado
+						_accept = true;
+					}
+				}
+			}
 			#end
 
 			if (_up)
