@@ -328,8 +328,12 @@ class Paths
 		return null;
 	}
 
-	inline static public function mods(key:String = '')
+	static public function mods(key:String = ''):String
 	{
+		#if android
+		if (Storage.storagePath != null && Storage.storagePath.length > 0)
+			return '${Storage.storagePath}/mods/${key}';
+		#end
 		return 'mods/' + key;
 	}
 
