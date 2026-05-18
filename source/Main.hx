@@ -72,6 +72,7 @@ class Main extends Sprite
 		#if android
 		lime.system.System.allowScreenTimeout = false;
 		requestExternalStoragePermission();
+		Storage.init();
 		#end
 
 		#if mobile
