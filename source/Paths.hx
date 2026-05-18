@@ -184,7 +184,7 @@ class Paths
 		return getPath('music/$key.$SOUND_EXT', MUSIC, library);
 	}
 
-	inline static public function voices(song:String):Any
+	static public function voices(song:String):Any
 	{
 		#if MODS_ALLOWED
 		var file:Sound = returnSongFile(modsSongs(song.toLowerCase().replace(' ', '-') + '/Voices'));
@@ -194,7 +194,7 @@ class Paths
 		return 'songs:assets/songs/${song.toLowerCase().replace(' ', '-')}/Voices.$SOUND_EXT';
 	}
 
-	inline static public function inst(song:String):Any
+	static public function inst(song:String):Any
 	{
 		#if MODS_ALLOWED
 		var file:Sound = returnSongFile(modsSongs(song.toLowerCase().replace(' ', '-') + '/Inst'));
