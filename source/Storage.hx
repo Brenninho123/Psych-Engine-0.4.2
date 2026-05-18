@@ -8,6 +8,8 @@ import openfl.utils.Assets as OpenFlAssets;
 import haxe.io.Path as HxPath;
 #end
 
+using StringTools;
+
 class Storage
 {
 	#if android
@@ -57,8 +59,9 @@ class Storage
 	static function extractOnce():Void
 	{
 		var versionFile = '${storagePath}/${VERSION_FILE}';
+		var current     = FileSystem.exists(versionFile) ? StringTools.trim(File.getContent(versionFile)) : "";
 
-		if (FileSystem.exists(versionFile) && File.getContent(versionFile).trim() == APP_VERSION)
+		if (current == APP_VERSION)
 			return;
 
 		copyEmbeddedLibrary("assets", '${storagePath}/assets');
@@ -67,15 +70,21 @@ class Storage
 		File.saveContent(versionFile, APP_VERSION);
 	}
 
-	static function copyEmbeddedLibrary(library:String, dest:String):Void
+	static function copyEmbeddedLibrary(prefix:String, dest:String):Void
 	{
-		var list:Array<String> = [];
-		try   { list = OpenFlAssets.list(library); }
+		var all:Array<String> = [];
+		try   { all = OpenFlAssets.list(); }
 		catch (e:Dynamic) {}
 
-		for (assetKey in list)
+		for (assetKey in all)
 		{
-			var cleanKey = assetKey.replace(library + "/", "").replace(library + ":", "");
+			if (!assetKey.startsWith(prefix + ":") && !assetKey.startsWith(prefix + "/"))
+				continue;
+
+			var cleanKey = assetKey
+				.replace(prefix + ":", "")
+				.replace(prefix + "/", "");
+
 			var destPath = '${dest}/${cleanKey}';
 			var destDir  = HxPath.directory(destPath);
 
