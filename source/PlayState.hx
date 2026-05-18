@@ -410,7 +410,7 @@ class PlayState extends MusicBeatState
 				phillyTrain = new BGSprite('philly/train', 2000, 360);
 				add(phillyTrain);
 
-				trainSound = new FlxSound().loadEmbedded(Paths.sound('train_passes'));
+				trainSound = new FlxSound().loadEmbedded(openfl.Assets.getSound(Paths.sound('train_passes')));
 				CoolUtil.precacheSound('train_passes');
 				FlxG.sound.list.add(trainSound);
 
@@ -1404,12 +1404,22 @@ class PlayState extends MusicBeatState
 		curSong = songData.song;
 
 		if (SONG.needsVoices)
-			vocals = new FlxSound().loadEmbedded(Paths.voices(PlayState.SONG.song));
+		{
+			var vf:Any = Paths.voices(PlayState.SONG.song);
+			vocals = Std.isOfType(vf, openfl.media.Sound)
+				? new FlxSound().loadEmbedded(cast(vf, openfl.media.Sound))
+				: new FlxSound().loadEmbedded(openfl.Assets.getSound(cast(vf, String)));
+		}
 		else
 			vocals = new FlxSound();
 
 		FlxG.sound.list.add(vocals);
-		FlxG.sound.list.add(new FlxSound().loadEmbedded(Paths.inst(PlayState.SONG.song)));
+
+		var iFile:Any    = Paths.inst(PlayState.SONG.song);
+		var iSound:openfl.media.Sound = Std.isOfType(iFile, openfl.media.Sound)
+			? cast(iFile, openfl.media.Sound)
+			: openfl.Assets.getSound(cast(iFile, String));
+		FlxG.sound.list.add(new FlxSound().loadEmbedded(iSound));
 
 		notes = new FlxTypedGroup<Note>();
 		add(notes);
