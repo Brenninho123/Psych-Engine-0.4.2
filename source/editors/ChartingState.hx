@@ -852,13 +852,13 @@ class ChartingState extends MusicBeatState
 	{
 		if (FlxG.sound.music != null) FlxG.sound.music.stop();
 
-		var file:Dynamic = Paths.voices(currentSongName);
+		var file:Any = Paths.voices(currentSongName);
 		vocals = new FlxSound();
-		if (Std.isOfType(file, Sound) || OpenFlAssets.exists(file))
-		{
-			vocals.loadEmbedded(file);
-			FlxG.sound.list.add(vocals);
-		}
+		if (Std.isOfType(file, openfl.media.Sound))
+			vocals.loadEmbedded(cast(file, openfl.media.Sound));
+		else if (OpenFlAssets.exists(cast(file, String)))
+			vocals.loadEmbedded(OpenFlAssets.getSound(cast(file, String)));
+		FlxG.sound.list.add(vocals);
 		generateSong();
 		FlxG.sound.music.pause();
 		Conductor.songPosition = sectionStartTime();
@@ -1226,9 +1226,11 @@ class ChartingState extends MusicBeatState
 			audioBuffers[0] = AudioBuffer.fromFile(Paths.modFolders('songs/' + currentSongName + '/Inst.ogg'));
 		else {
 		#end
-			var leVocals:Dynamic = Paths.inst(currentSongName);
-			if (!Std.isOfType(leVocals, Sound) && OpenFlAssets.exists(leVocals))
-				audioBuffers[0] = AudioBuffer.fromFile('./' + leVocals.substr(6));
+			var leVocals:Any = Paths.inst(currentSongName);
+			if (Std.isOfType(leVocals, openfl.media.Sound))
+				audioBuffers[0] = AudioBuffer.fromFile(cast(leVocals, openfl.media.Sound).url);
+			else if (OpenFlAssets.exists(cast(leVocals, String)))
+				audioBuffers[0] = AudioBuffer.fromFile('./' + (cast(leVocals, String)).substr(6));
 		#if MODS_ALLOWED
 		}
 		#end
@@ -1239,9 +1241,11 @@ class ChartingState extends MusicBeatState
 			audioBuffers[1] = AudioBuffer.fromFile(Paths.modFolders('songs/' + currentSongName + '/Voices.ogg'));
 		else {
 		#end
-			var leVocals:Dynamic = Paths.voices(currentSongName);
-			if (!Std.isOfType(leVocals, Sound) && OpenFlAssets.exists(leVocals))
-				audioBuffers[1] = AudioBuffer.fromFile('./' + leVocals.substr(6));
+			var leVocals:Any = Paths.voices(currentSongName);
+			if (Std.isOfType(leVocals, openfl.media.Sound))
+				audioBuffers[1] = AudioBuffer.fromFile(cast(leVocals, openfl.media.Sound).url);
+			else if (OpenFlAssets.exists(cast(leVocals, String)))
+				audioBuffers[1] = AudioBuffer.fromFile('./' + (cast(leVocals, String)).substr(6));
 		#if MODS_ALLOWED
 		}
 		#end
