@@ -9,6 +9,12 @@ You can do this with: `haxelib install linc_luajit` on a Command prompt/PowerShe
 
 ...Or if you don't want your mod to be able to run .lua scripts, delete the "LUA_ALLOWED" line on Project.xml
 
+## Mobile Credits:
+* Brenninho - Porter
+
+## Mobile Special Thanks 
+* DeveloperPorting - extension-androidtools lib
+
 ## Credits:
 * Shadow Mario - Coding
 * RiverOaken - Arts and Animations
