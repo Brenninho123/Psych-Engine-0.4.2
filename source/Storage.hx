@@ -1,12 +1,13 @@
 package;
 
 #if android
-import AndroidContext;
-import AndroidEnvironment;
-import AndroidPermissions;
-import AndroidSettings;
-import AndroidVersion;
-import AndroidVersionCode;
+import extension.androidtools.content.Context as AndroidContext;
+import extension.androidtools.os.Environment as AndroidEnvironment;
+import extension.androidtools.Settings as AndroidSettings;
+import extension.androidtools.Permissions as AndroidPermissions;
+import extension.androidtools.os.Build.VERSION as AndroidVersion;
+import extension.androidtools.os.Build.VERSION_CODES as AndroidVersionCode;
+import lime.system.System as LimeSystem;
 import sys.FileSystem;
 import sys.io.File;
 import openfl.utils.Assets as OpenFlAssets;
@@ -25,7 +26,7 @@ class Storage
 
 	public static function init(?onProgress:Float->String->Void):Void
 	{
-		storagePath = AndroidContext.getExternalFilesDir();
+		storagePath = resolveExternalDataPath();
 
 		try
 		{
@@ -34,7 +35,10 @@ class Storage
 			if (!FileSystem.exists('${storagePath}/mods'))
 				FileSystem.createDirectory('${storagePath}/mods');
 		}
-		catch (e:Dynamic) {}
+		catch (e:Dynamic)
+		{
+			LimeSystem.exit(1);
+		}
 
 		extractOnce(onProgress);
 	}
@@ -43,22 +47,33 @@ class Storage
 	{
 		if (AndroidVersion.SDK_INT >= AndroidVersionCode.TIRAMISU)
 			AndroidPermissions.requestPermissions([
-				'READ_MEDIA_IMAGES',
-				'READ_MEDIA_VIDEO',
-				'READ_MEDIA_AUDIO'
+				"READ_MEDIA_IMAGES",
+				"READ_MEDIA_VIDEO",
+				"READ_MEDIA_AUDIO"
 			]);
 		else
 			AndroidPermissions.requestPermissions([
-				'READ_EXTERNAL_STORAGE',
-				'WRITE_EXTERNAL_STORAGE'
+				"READ_EXTERNAL_STORAGE",
+				"WRITE_EXTERNAL_STORAGE"
 			]);
 
 		if (!AndroidEnvironment.isExternalStorageManager())
 		{
 			if (AndroidVersion.SDK_INT >= AndroidVersionCode.S)
-				AndroidSettings.requestSetting('REQUEST_MANAGE_MEDIA');
-			AndroidSettings.requestSetting('MANAGE_APP_ALL_FILES_ACCESS_PERMISSION');
+				AndroidSettings.requestSetting("REQUEST_MANAGE_MEDIA");
+			AndroidSettings.requestSetting("MANAGE_APP_ALL_FILES_ACCESS_PERMISSION");
 		}
+	}
+
+	static function resolveExternalDataPath():String
+	{
+		try
+		{
+			var result:String = AndroidContext.getExternalFilesDir();
+			if (result != null && result.length > 0) return result;
+		}
+		catch (e:Dynamic) {}
+		return "/sdcard/Android/data/com.shadowmario.psychengine042/files";
 	}
 
 	static function extractOnce(?onProgress:Float->String->Void):Void
@@ -77,7 +92,6 @@ class Storage
 		copyEmbeddedLibrary("mods", '${storagePath}/mods', onProgress);
 
 		File.saveContent(versionFile, APP_VERSION);
-
 		if (onProgress != null) onProgress(1.0, "Done.");
 	}
 
@@ -87,7 +101,7 @@ class Storage
 		try   { all = OpenFlAssets.list(); }
 		catch (e:Dynamic) {}
 
-		var filtered:Array<String> = all.filter(function(k)
+		var filtered = all.filter(function(k)
 			return k.startsWith(prefix + ":") || k.startsWith(prefix + "/")
 		);
 
@@ -97,11 +111,9 @@ class Storage
 		for (assetKey in filtered)
 		{
 			idx++;
-
 			var cleanKey = assetKey
 				.replace(prefix + ":", "")
 				.replace(prefix + "/", "");
-
 			var destPath = '${dest}/${cleanKey}';
 			var destDir  = HxPath.directory(destPath);
 
@@ -112,9 +124,7 @@ class Storage
 			{
 				if (!FileSystem.exists(destDir))
 					FileSystem.createDirectory(destDir);
-
 				if (FileSystem.exists(destPath)) continue;
-
 				var bytes = OpenFlAssets.getBytes(assetKey);
 				if (bytes != null)
 					File.saveBytes(destPath, bytes);
