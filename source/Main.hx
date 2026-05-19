@@ -67,101 +67,108 @@ class Main extends Sprite
 		bg.graphics.endFill();
 		addChild(bg);
 
-		var titleFmt = new TextFormat("_sans", 32, 0xFFFFFF, true);
-		var title    = new TextField();
-		title.defaultTextFormat = titleFmt;
-		title.text              = "FNF: Psych Engine 0.4.2";
-		title.autoSize          = TextFieldAutoSize.CENTER;
-		title.selectable        = false;
-		title.x                 = (sw - title.textWidth) / 2;
-		title.y                 = sh * 0.3;
-		addChild(title);
+		function makeTF(size:Int, color:UInt, bold:Bool = false):TextField
+		{
+			var tf  = new TextField();
+			tf.defaultTextFormat = new TextFormat("_sans", size, color, bold);
+			tf.autoSize   = TextFieldAutoSize.CENTER;
+			tf.selectable = false;
+			tf.width      = sw;
+			tf.x          = 0;
+			return tf;
+		}
 
-		var subtitleFmt = new TextFormat("_sans", 18, 0xAAAAAA);
-		var subtitle    = new TextField();
-		subtitle.defaultTextFormat = subtitleFmt;
-		subtitle.text              = "Extracting files, please wait...";
-		subtitle.autoSize          = TextFieldAutoSize.CENTER;
-		subtitle.selectable        = false;
-		subtitle.x                 = (sw - subtitle.textWidth) / 2;
-		subtitle.y                 = title.y + 50;
-		addChild(subtitle);
+		var titleTF = makeTF(30, 0xFFFFFF, true);
+		titleTF.text = "FNF: Psych Engine 0.4.2";
+		titleTF.y    = sh * 0.22;
+		addChild(titleTF);
 
-		var barW:Float = sw * 0.65;
-		var barH:Float = 22;
+		var libTF = makeTF(20, 0xDDDDDD);
+		libTF.text = "Preparing...";
+		libTF.y    = sh * 0.42;
+		addChild(libTF);
+
+		var fileTF = makeTF(14, 0x888888);
+		fileTF.text = "";
+		fileTF.y    = sh * 0.49;
+		addChild(fileTF);
+
+		var countTF = makeTF(14, 0x666666);
+		countTF.text = "";
+		countTF.y    = sh * 0.55;
+		addChild(countTF);
+
+		var barW:Float = sw * 0.68;
+		var barH:Float = 18;
 		var barX:Float = (sw - barW) / 2;
-		var barY:Float = sh * 0.55;
+		var barY:Float = sh * 0.46;
 
 		var barBg = new Shape();
-		barBg.graphics.beginFill(0x333333);
-		barBg.graphics.drawRoundRect(barX, barY, barW, barH, 11, 11);
+		barBg.graphics.beginFill(0x222222);
+		barBg.graphics.drawRoundRect(barX, barY, barW, barH, 9, 9);
 		barBg.graphics.endFill();
 		addChild(barBg);
 
 		var barFill = new Shape();
 		addChild(barFill);
 
-		var statusFmt = new TextFormat("_sans", 14, 0x888888);
-		var statusTF  = new TextField();
-		statusTF.defaultTextFormat = statusFmt;
-		statusTF.width             = sw;
-		statusTF.autoSize          = TextFieldAutoSize.CENTER;
-		statusTF.selectable        = false;
-		statusTF.x                 = 0;
-		statusTF.y                 = barY + barH + 10;
-		addChild(statusTF);
-
-		var mutex    = new Mutex();
-		var progress = {v: 0.0};
-		var msg      = {v: "Preparing..."};
-		var done     = {v: false};
+		var mutex   = new Mutex();
+		var state   = { pct: 0.0, lib: "Preparing...", file: "", cur: 0, total: 0, done: false };
 
 		Thread.create(function()
 		{
-			Storage.init(function(p:Float, m:String)
+			Storage.init(function(pct:Float, lib:String, file:String, cur:Int, total:Int)
 			{
 				mutex.acquire();
-				progress.v = p;
-				msg.v      = m;
+				state.pct   = pct;
+				state.lib   = lib;
+				state.file  = file;
+				state.cur   = cur;
+				state.total = total;
 				mutex.release();
 			});
 			mutex.acquire();
-			done.v = true;
+			state.done = true;
 			mutex.release();
 		});
 
 		var onFrame:Event->Void = null;
-		onFrame = function(e:Event)
+		onFrame = function(_)
 		{
 			mutex.acquire();
-			var p:Float  = progress.v;
-			var m:String = msg.v;
-			var d:Bool   = done.v;
+			var pct   = state.pct;
+			var lib   = state.lib;
+			var file  = state.file;
+			var cur   = state.cur;
+			var total = state.total;
+			var done  = state.done;
 			mutex.release();
 
 			barFill.graphics.clear();
-			if (p > 0)
+			if (pct > 0)
 			{
-				barFill.graphics.beginFill(0xFF2E6EE3);
-				barFill.graphics.drawRoundRect(barX, barY, barW * p, barH, 11, 11);
+				barFill.graphics.beginFill(0x3399FF);
+				barFill.graphics.drawRoundRect(barX, barY, barW * pct, barH, 9, 9);
 				barFill.graphics.endFill();
 			}
 
-			statusTF.text = m;
+			libTF.text   = lib;
+			fileTF.text  = file.length > 60 ? '...${file.substr(file.length - 57)}' : file;
+			countTF.text = total > 0 ? '${cur} / ${total}' : "";
 
-			if (d)
+			if (done)
 			{
 				stage.removeEventListener(Event.ENTER_FRAME, onFrame);
 				removeChild(barFill);
 				removeChild(barBg);
-				removeChild(statusTF);
-				removeChild(subtitle);
-				removeChild(title);
+				removeChild(countTF);
+				removeChild(fileTF);
+				removeChild(libTF);
+				removeChild(titleTF);
 				removeChild(bg);
 				finishSetup();
 			}
 		};
-
 		stage.addEventListener(Event.ENTER_FRAME, onFrame);
 	}
 	#end
