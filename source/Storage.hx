@@ -2,6 +2,7 @@ package;
 
 #if android
 import lime.system.JNI;
+import lime.system.System as LimeSystem;
 import sys.FileSystem;
 import sys.io.File;
 import openfl.utils.Assets as OpenFlAssets;
@@ -13,56 +14,48 @@ using StringTools;
 class Storage
 {
 	#if android
-	public static var externalPath(default, null):String = "";
-	public static var storagePath(default, null):String  = "";
-	public static var dataPath(default, null):String     = "";
+	public static var storagePath(default, null):String = "";
 
-	static final APP_FOLDER:String   = ".PsychEngine042";
 	static final VERSION_FILE:String = ".version";
 	static final APP_VERSION:String  = "0.4.2";
 
 	public static function init():Void
 	{
-		externalPath = resolveExternalPath();
-		dataPath     = resolveDataPath();
-		storagePath  = '${externalPath}/${APP_FOLDER}';
+		storagePath = getExternalDataPath();
 
-		mkdirAll([
-			storagePath,
-			'${storagePath}/assets',
-			'${storagePath}/mods',
-			dataPath,
-			'${dataPath}/assets',
-			'${dataPath}/mods'
-		]);
+		try
+		{
+			if (!FileSystem.exists(storagePath))
+				FileSystem.createDirectory(storagePath);
+			if (!FileSystem.exists('${storagePath}/mods'))
+				FileSystem.createDirectory('${storagePath}/mods');
+		}
+		catch (e:Dynamic)
+		{
+			LimeSystem.exit(1);
+		}
 
 		extractOnce();
 	}
 
-	// /sdcard/  via Environment.getExternalStorageDirectory()
-	static function resolveExternalPath():String
+	public static function requestPermissions():Void
 	{
-		try
-		{
-			var getDir  = JNI.createStaticMethod(
-				"android/os/Environment",
-				"getExternalStorageDirectory",
-				"()Ljava/io/File;"
-			);
-			var getPath = JNI.createMemberMethod(
-				"java/io/File",
-				"getAbsolutePath",
-				"()Ljava/lang/String;"
-			);
-			var result:String = getPath(getDir());
-			if (result != null && result.length > 0) return result;
-		}
-		catch (e:Dynamic) {}
-		return "/sdcard";
+		var sdkInt:Int = getSdkInt();
+
+		if (sdkInt >= 33)
+			requestRuntimePermissions(["android.permission.READ_MEDIA_IMAGES",
+			                           "android.permission.READ_MEDIA_VIDEO",
+			                           "android.permission.READ_MEDIA_AUDIO"]);
+		else
+			requestRuntimePermissions(["android.permission.READ_EXTERNAL_STORAGE",
+			                           "android.permission.WRITE_EXTERNAL_STORAGE"]);
+
+		if (sdkInt >= 30 && !isExternalStorageManager())
+			openManageStorageSettings();
 	}
 
-	// /sdcard/Android/data/<package>/files/  via Context.getExternalFilesDir(null)
-	static function resolveDataPath():String
+	// /sdcard/Android/data/<package>/files  via Context.getExternalFilesDir(null)
+	static function getExternalDataPath():String
 	{
 		try
 		{
@@ -81,26 +74,99 @@ class Storage
 				"getAbsolutePath",
 				"()Ljava/lang/String;"
 			);
-			var activity = getInstance();
-			var dir      = getExtFiles(activity, null);
-			var result:String = getAbsPath(dir);
+			var result:String = getAbsPath(getExtFiles(getInstance(), null));
 			if (result != null && result.length > 0) return result;
 		}
 		catch (e:Dynamic) {}
-		return '${externalPath}/Android/data';
+		return "/sdcard/Android/data/com.shadowmario.psychengine042/files";
 	}
 
-	static function mkdirAll(paths:Array<String>):Void
+	static function getSdkInt():Int
 	{
-		for (p in paths)
+		try
 		{
-			try
-			{
-				if (!FileSystem.exists(p))
-					FileSystem.createDirectory(p);
-			}
-			catch (e:Dynamic) {}
+			return JNI.createStaticField("android/os/Build$VERSION", "SDK_INT", "I").get();
 		}
+		catch (e:Dynamic) {}
+		return 0;
+	}
+
+	static function isExternalStorageManager():Bool
+	{
+		try
+		{
+			return JNI.createStaticMethod("android/os/Environment", "isExternalStorageManager", "()Z")();
+		}
+		catch (e:Dynamic) {}
+		return false;
+	}
+
+	static function requestRuntimePermissions(perms:Array<String>):Void
+	{
+		try
+		{
+			var getInstance    = JNI.createStaticMethod(
+				"org/haxe/lime/GameActivity",
+				"getInstance",
+				"()Lorg/haxe/lime/GameActivity;"
+			);
+			var requestPerms = JNI.createMemberMethod(
+				"android/app/Activity",
+				"requestPermissions",
+				"([Ljava/lang/String;I)V"
+			);
+			requestPerms(getInstance(), perms, 0);
+		}
+		catch (e:Dynamic) {}
+	}
+
+	static function openManageStorageSettings():Void
+	{
+		try
+		{
+			var getInstance  = JNI.createStaticMethod(
+				"org/haxe/lime/GameActivity",
+				"getInstance",
+				"()Lorg/haxe/lime/GameActivity;"
+			);
+			var uriParse     = JNI.createStaticMethod(
+				"android/net/Uri",
+				"parse",
+				"(Ljava/lang/String;)Landroid/net/Uri;"
+			);
+			var newIntent    = JNI.createStaticMethod(
+				"android/content/Intent",
+				"<init>",  // workaround: usamos startActivity via reflection
+				"(Ljava/lang/String;Landroid/net/Uri;)V"
+			);
+			var startActivity = JNI.createMemberMethod(
+				"android/app/Activity",
+				"startActivity",
+				"(Landroid/content/Intent;)V"
+			);
+			var getPackageName = JNI.createMemberMethod(
+				"android/content/Context",
+				"getPackageName",
+				"()Ljava/lang/String;"
+			);
+			var activity   = getInstance();
+			var pkgName:String = getPackageName(activity);
+			var uri        = uriParse("package:" + pkgName);
+
+			var intentCtor = JNI.createMemberMethod(
+				"android/content/Intent",
+				"<init>",
+				"(Ljava/lang/String;Landroid/net/Uri;)V"
+			);
+			var ACTION = "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION";
+			var intent = JNI.createStaticMethod(
+				"android/content/Intent",
+				"<init>",
+				"()V"
+			)();
+			startActivity(activity, intent);
+		}
+		catch (e:Dynamic) {}
 	}
 
 	static function extractOnce():Void
@@ -112,11 +178,7 @@ class Storage
 
 		if (current == APP_VERSION) return;
 
-		copyEmbeddedLibrary("assets", '${storagePath}/assets');
-		copyEmbeddedLibrary("mods",   '${storagePath}/mods');
-
-		// espelha mods também no caminho Android/data para fácil acesso pelo gerenciador
-		copyEmbeddedLibrary("mods", '${dataPath}/mods');
+		copyEmbeddedLibrary("mods", '${storagePath}/mods');
 
 		File.saveContent(versionFile, APP_VERSION);
 	}
