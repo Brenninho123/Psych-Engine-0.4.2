@@ -12,7 +12,7 @@ You can do this with: `haxelib install linc_luajit` on a Command prompt/PowerShe
 ## Mobile Credits:
 * Brenninho - Porter
 
-## Mobile Special Thanks 
+## Mobile Special Thanks:
 * DeveloperPorting - extension-androidtools lib
 
 ## Credits:
