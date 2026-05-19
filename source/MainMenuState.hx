@@ -49,6 +49,11 @@ class MainMenuState extends MusicBeatState
 	static inline final SWIPE_THRESHOLD:Float = 60;
 	var _touchStartX:Float = 0;
 	var _touchStartY:Float = 0;
+
+	var _editorBtnX:Float = 0;
+	var _editorBtnY:Float = 0;
+	static inline final BTN_W:Float = 80;
+	static inline final BTN_H:Float = 64;
 	#end
 
 	override function create()
@@ -127,6 +132,23 @@ class MainMenuState extends MusicBeatState
 		versionShit2.setFormat("VCR OSD Mono", 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
 		add(versionShit2);
 
+		#if mobile
+		_editorBtnX = 10;
+		_editorBtnY = FlxG.height - BTN_H - 10;
+
+		var editorBtnBG:FlxSprite = new FlxSprite(_editorBtnX, _editorBtnY);
+		editorBtnBG.makeGraphic(Std.int(BTN_W), Std.int(BTN_H), 0x88000000);
+		editorBtnBG.scrollFactor.set();
+		add(editorBtnBG);
+
+		var editorBtnLabel:FlxText = new FlxText(_editorBtnX, _editorBtnY, BTN_W, "E", 36);
+		editorBtnLabel.setFormat(Paths.font("vcr.ttf"), 36, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+		editorBtnLabel.scrollFactor.set();
+		editorBtnLabel.borderSize = 2;
+		editorBtnLabel.y += (BTN_H - editorBtnLabel.height) / 2;
+		add(editorBtnLabel);
+		#end
+
 		changeItem();
 
 		#if ACHIEVEMENTS_ALLOWED
@@ -172,6 +194,7 @@ class MainMenuState extends MusicBeatState
 			var _down:Bool   = controls.UI_DOWN_P;
 			var _back:Bool   = controls.BACK;
 			var _accept:Bool = controls.ACCEPT;
+			var _editor:Bool = false;
 
 			#if mobile
 			for (touch in FlxG.touches.list)
@@ -187,7 +210,15 @@ class MainMenuState extends MusicBeatState
 					var dx:Float = touch.viewX - _touchStartX;
 					var dy:Float = touch.viewY - _touchStartY;
 
-					if (Math.abs(dy) >= SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx))
+					var onEditorBtn:Bool =
+						touch.viewX >= _editorBtnX && touch.viewX <= _editorBtnX + BTN_W &&
+						touch.viewY >= _editorBtnY && touch.viewY <= _editorBtnY + BTN_H;
+
+					if (onEditorBtn)
+					{
+						_editor = true;
+					}
+					else if (Math.abs(dy) >= SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx))
 					{
 						if (dy < 0) _up   = true;
 						else         _down = true;
@@ -221,6 +252,11 @@ class MainMenuState extends MusicBeatState
 				FlxG.sound.play(Paths.sound('cancelMenu'));
 				MusicBeatState.switchState(new TitleState());
 			}
+			else if (_editor)
+			{
+				selectedSomethin = true;
+				MusicBeatState.switchState(new MasterEditorMenu());
+			}
 			else if (_accept)
 			{
 				if (optionShit[curSelected] == 'donate')
@@ -235,7 +271,6 @@ class MainMenuState extends MusicBeatState
 					if (ClientPrefs.flashing)
 						FlxFlicker.flicker(magenta, 1.1, 0.15, false);
 
-					// captura valor por segurança antes do callback assíncrono
 					var selectedOption:String = optionShit[curSelected];
 
 					menuItems.forEach(function(spr:FlxSprite)
