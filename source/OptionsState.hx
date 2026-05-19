@@ -192,13 +192,34 @@ class OptionsState extends MusicBeatState
 	}
 
 	#if android
+	function showAndroidAlert(title:String, message:String):Void
+	{
+		try
+		{
+			var getActivity = JNI.createStaticMethod("org/haxe/lime/GameActivity", "getInstance", "()Lorg/haxe/lime/GameActivity;");
+			var activity = getActivity();
+			var runOnUiThread = JNI.createMemberMethod("android/app/Activity", "runOnUiThread", "(Ljava/lang/Runnable;)V");
+			var builderCtor = JNI.createMemberMethod("android/app/AlertDialog$Builder", "<init>", "(Landroid/content/Context;)V");
+			var setTitle    = JNI.createMemberMethod("android/app/AlertDialog$Builder", "setTitle",   "(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder;");
+			var setMessage  = JNI.createMemberMethod("android/app/AlertDialog$Builder", "setMessage", "(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder;");
+			var setButton   = JNI.createMemberMethod("android/app/AlertDialog$Builder", "setPositiveButton", "(Ljava/lang/CharSequence;Landroid/content/DialogInterface$OnClickListener;)Landroid/app/AlertDialog$Builder;");
+			var show        = JNI.createMemberMethod("android/app/AlertDialog$Builder", "show", "()Landroid/app/AlertDialog;");
+			var builder = builderCtor(activity);
+			setTitle(builder, title);
+			setMessage(builder, message);
+			setButton(builder, "OK", null);
+			show(builder);
+		}
+		catch (e:Dynamic) {}
+	}
+
 	function openDataFolder():Void
 	{
 		var path = Storage.storagePath != null && Storage.storagePath.length > 0
 			? Storage.storagePath
 			: "/sdcard/Android/data/com.shadowmario.psychengine042/files";
 
-		CoolUtil.showPopUp('Mods folder:\n${path}/mods\n\nOpen your file manager\nand navigate to this path to add mods.', 'Data Folder');
+		showAndroidAlert('Data Folder', 'Mods folder:\n${path}/mods\n\nOpen your file manager and navigate to this path to add mods.');
 
 		try
 		{
