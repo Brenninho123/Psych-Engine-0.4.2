@@ -18,6 +18,10 @@ import sys.thread.Mutex;
 import sys.io.File;
 import sys.FileSystem;
 #end
+#if sys
+import sys.io.File as SysFile;
+import sys.FileSystem as SysFS;
+#end
 
 class Main extends Sprite
 {
@@ -27,37 +31,49 @@ class Main extends Sprite
 	var framerate:Int        = 60;
 	var skipSplash:Bool      = true;
 	var startFullscreen:Bool = false;
+
 	public static var fpsVar:FPS;
+	public static var instance:Main;
 
 	public static function main():Void
 	{
-		Lib.current.addChild(new Main());
+		try { Lib.current.addChild(new Main()); }
+		catch (e:Dynamic) {}
 	}
 
 	public function new()
 	{
 		super();
-		if (stage != null) init();
-		else addEventListener(Event.ADDED_TO_STAGE, init);
+		instance = this;
+		try
+		{
+			if (stage != null) init();
+			else addEventListener(Event.ADDED_TO_STAGE, init);
+		}
+		catch (e:Dynamic) { safeExit(); }
 	}
 
 	private function init(?E:Event):Void
 	{
-		if (hasEventListener(Event.ADDED_TO_STAGE))
-			removeEventListener(Event.ADDED_TO_STAGE, init);
+		try
+		{
+			if (hasEventListener(Event.ADDED_TO_STAGE))
+				removeEventListener(Event.ADDED_TO_STAGE, init);
+		}
+		catch (e:Dynamic) {}
 
 		setupCrashHandler();
 		setupGame();
 	}
-
-	// ─── Crash Handler ────────────────────────────────────────────────────────
 
 	private function setupCrashHandler():Void
 	{
 		try
 		{
 			Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(
-				UncaughtErrorEvent.UNCAUGHT_ERROR, onUncaughtError
+				UncaughtErrorEvent.UNCAUGHT_ERROR,
+				onUncaughtError,
+				false, 100
 			);
 		}
 		catch (e:Dynamic) {}
@@ -65,10 +81,16 @@ class Main extends Sprite
 
 	private function onUncaughtError(e:UncaughtErrorEvent):Void
 	{
-		try { e.preventDefault(); } catch (_:Dynamic) {}
+		try { e.preventDefault(); e.stopImmediatePropagation(); }
+		catch (_:Dynamic) {}
 
-		var msg:String = "";
-		try { msg = Std.string(e.error); } catch (_:Dynamic) { msg = "Unknown error"; }
+		var msg:String = "Unknown error";
+		try
+		{
+			if (e.error != null)
+				msg = Std.string(e.error);
+		}
+		catch (_:Dynamic) {}
 
 		writeCrashLog(msg);
 		showCrashScreen(msg);
@@ -76,45 +98,36 @@ class Main extends Sprite
 
 	private function writeCrashLog(msg:String):Void
 	{
+		var timestamp = "";
+		try { timestamp = Date.now().toString(); } catch (_:Dynamic) {}
+
+		var content = '=== Psych Engine 0.4.2 Crash ===\nTime: $timestamp\n\n$msg\n\n';
+
 		#if android
 		try
 		{
-			var basePath:String = Storage.storagePath != null && Storage.storagePath.length > 0
+			var base = (Storage.storagePath != null && Storage.storagePath.length > 0)
 				? Storage.storagePath
 				: "/sdcard/Android/data/com.shadowmario.psychengine042/files";
 
-			if (!FileSystem.exists(basePath))
-				FileSystem.createDirectory(basePath);
+			if (!FileSystem.exists(base))
+				FileSystem.createDirectory(base);
 
-			var timestamp:String = Date.now().toString();
-			var content:String   =
-				'=== Psych Engine 0.4.2 Crash Log ===\n' +
-				'Time:    $timestamp\n' +
-				'Version: 0.4.2\n' +
-				'Error:   $msg\n' +
-				'=====================================\n';
-
-			var logPath:String = '$basePath/crash_log.txt';
-			var existing:String = FileSystem.exists(logPath) ? File.getContent(logPath) : "";
-			File.saveContent(logPath, content + "\n" + existing);
+			var path = '$base/crash_log.txt';
+			var prev = FileSystem.exists(path) ? File.getContent(path) : "";
+			File.saveContent(path, content + prev);
 		}
-		catch (logErr:Dynamic) {}
+		catch (_:Dynamic) {}
 		#end
 
-		#if sys
+		#if (sys && !android)
 		try
 		{
-			var timestamp:String = Date.now().toString();
-			var content:String   =
-				'=== Psych Engine 0.4.2 Crash Log ===\n' +
-				'Time:  $timestamp\n' +
-				'Error: $msg\n' +
-				'=====================================\n\n';
-			var logPath:String = "crash_log.txt";
-			var existing:String = sys.FileSystem.exists(logPath) ? sys.io.File.getContent(logPath) : "";
-			sys.io.File.saveContent(logPath, content + existing);
+			var path = "crash_log.txt";
+			var prev = SysFS.exists(path) ? SysFile.getContent(path) : "";
+			SysFile.saveContent(path, content + prev);
 		}
-		catch (e:Dynamic) {}
+		catch (_:Dynamic) {}
 		#end
 	}
 
@@ -122,79 +135,81 @@ class Main extends Sprite
 	{
 		try
 		{
-			var sw:Float = stage != null ? stage.stageWidth  : 1280;
-			var sh:Float = stage != null ? stage.stageHeight : 720;
+			var sw:Float = (stage != null) ? stage.stageWidth  : 1280;
+			var sh:Float = (stage != null) ? stage.stageHeight : 720;
 
-			var overlay = new Sprite();
+			while (numChildren > 0)
+				try { removeChildAt(0); } catch (_:Dynamic) { break; }
+
+			var panel = new Sprite();
 
 			var bg = new Shape();
-			bg.graphics.beginFill(0x1A0000);
+			bg.graphics.beginFill(0x110000);
 			bg.graphics.drawRect(0, 0, sw, sh);
 			bg.graphics.endFill();
-			overlay.addChild(bg);
+			panel.addChild(bg);
 
-			function addTF(text:String, size:Int, color:UInt, y:Float, bold:Bool = false):Void
+			inline function tf(text:String, size:Int, col:UInt, yPos:Float, bold:Bool = false):Void
 			{
-				var tf = new TextField();
-				tf.defaultTextFormat = new TextFormat("_sans", size, color, bold);
-				tf.autoSize   = TextFieldAutoSize.CENTER;
-				tf.selectable = true;
-				tf.width      = sw;
-				tf.x          = 0;
-				tf.y          = y;
-				tf.text       = text;
-				overlay.addChild(tf);
+				var t = new TextField();
+				t.defaultTextFormat = new TextFormat("_sans", size, col, bold);
+				t.autoSize   = TextFieldAutoSize.CENTER;
+				t.selectable = false;
+				t.wordWrap   = false;
+				t.width      = sw;
+				t.x          = 0;
+				t.y          = yPos;
+				t.text       = text;
+				panel.addChild(t);
 			}
 
-			addTF("CRASH!", 48, 0xFF3333, sh * 0.08, true);
-			addTF("The game has crashed. Details below:", 20, 0xCCCCCC, sh * 0.22);
+			tf("CRASH!", 52, 0xFF2222, sh * 0.06, true);
+			tf("The game encountered an unrecoverable error.", 19, 0xBBBBBB, sh * 0.21);
 
 			var errBox = new TextField();
-			errBox.defaultTextFormat = new TextFormat("_typewriter", 16, 0xFF9966);
-			errBox.width        = sw * 0.85;
-			errBox.height       = sh * 0.32;
-			errBox.x            = sw * 0.075;
-			errBox.y            = sh * 0.29;
-			errBox.text         = msg;
-			errBox.wordWrap     = true;
-			errBox.multiline    = true;
-			errBox.selectable   = true;
-			errBox.border       = true;
-			errBox.borderColor  = 0x550000;
-			errBox.background   = true;
-			errBox.backgroundColor = 0x220000;
-			overlay.addChild(errBox);
+			errBox.defaultTextFormat = new TextFormat("_typewriter", 15, 0xFFAA66);
+			errBox.width       = sw * 0.86;
+			errBox.height      = sh * 0.28;
+			errBox.x           = sw * 0.07;
+			errBox.y           = sh * 0.28;
+			errBox.wordWrap    = true;
+			errBox.multiline   = true;
+			errBox.selectable  = true;
+			errBox.border      = true;
+			errBox.borderColor = 0x440000;
+			errBox.background  = true;
+			errBox.backgroundColor = 0x1A0000;
+			errBox.text        = msg;
+			panel.addChild(errBox);
 
 			#if android
-			var logPath = Storage.storagePath != null && Storage.storagePath.length > 0
+			var logPath = (Storage.storagePath != null && Storage.storagePath.length > 0)
 				? '${Storage.storagePath}/crash_log.txt'
 				: '/sdcard/Android/data/com.shadowmario.psychengine042/files/crash_log.txt';
-			addTF('Crash log saved to:\n$logPath', 16, 0x888888, sh * 0.65);
-			addTF("Tap anywhere to close the game.", 20, 0xAAAAAA, sh * 0.80);
+			tf('Log saved to: $logPath', 14, 0x666666, sh * 0.64);
+			tf("Tap anywhere to close.", 20, 0x999999, sh * 0.78);
 			#else
-			addTF("Crash log saved to: crash_log.txt", 16, 0x888888, sh * 0.65);
-			addTF("Click anywhere to close the game.", 20, 0xAAAAAA, sh * 0.80);
+			tf("Log saved to: crash_log.txt", 14, 0x666666, sh * 0.64);
+			tf("Click anywhere to close.", 20, 0x999999, sh * 0.78);
 			#end
 
-			overlay.addEventListener(Event.ENTER_FRAME, function(_) {
-				if (FlxG.mouse.justPressed || (FlxG.touches.list.length > 0 && FlxG.touches.list[0].justPressed))
-					lime.system.System.exit(1);
-			});
+			panel.addEventListener(openfl.events.MouseEvent.CLICK,  function(_) safeExit());
+			panel.addEventListener(openfl.events.TouchEvent.TOUCH_TAP, function(_) safeExit());
 
-			addChild(overlay);
+			addChild(panel);
 		}
-		catch (e:Dynamic)
-		{
-			lime.system.System.exit(1);
-		}
+		catch (_:Dynamic) { safeExit(); }
 	}
 
-	// ─── Game Setup ───────────────────────────────────────────────────────────
+	private function safeExit():Void
+	{
+		try { lime.system.System.exit(1); } catch (_:Dynamic) {}
+	}
 
 	private function setupGame():Void
 	{
 		#if android
-		try { Storage.requestPermissions(); } catch (e:Dynamic) { writeCrashLog("requestPermissions: " + e); }
+		try { Storage.requestPermissions(); } catch (e:Dynamic) { writeCrashLog("permissions\n" + e); }
 		showLoadingScreen();
 		#else
 		finishSetup();
@@ -204,8 +219,10 @@ class Main extends Sprite
 	#if android
 	private function showLoadingScreen():Void
 	{
-		var sw:Float = stage.stageWidth;
-		var sh:Float = stage.stageHeight;
+		var sw:Float = 0;
+		var sh:Float = 0;
+		try { sw = stage.stageWidth; sh = stage.stageHeight; }
+		catch (_:Dynamic) { sw = 1280; sh = 720; }
 
 		var bg = new Shape();
 		bg.graphics.beginFill(0x000000);
@@ -213,78 +230,69 @@ class Main extends Sprite
 		bg.graphics.endFill();
 		addChild(bg);
 
-		function makeTF(size:Int, color:UInt, bold:Bool = false):TextField
+		inline function makeTF(size:Int, col:UInt, bold:Bool = false):TextField
 		{
-			var tf = new TextField();
-			tf.defaultTextFormat = new TextFormat("_sans", size, color, bold);
-			tf.autoSize   = TextFieldAutoSize.CENTER;
-			tf.selectable = false;
-			tf.width      = sw;
-			tf.x          = 0;
-			return tf;
+			var t = new TextField();
+			t.defaultTextFormat = new TextFormat("_sans", size, col, bold);
+			t.autoSize   = TextFieldAutoSize.CENTER;
+			t.selectable = false;
+			t.width      = sw;
+			t.x          = 0;
+			return t;
 		}
 
 		var titleTF = makeTF(34, 0xFFFFFF, true);
 		titleTF.text = "FNF: Psych Engine 0.4.2";
-		titleTF.y    = sh * 0.20;
+		titleTF.y    = sh * 0.19;
 		addChild(titleTF);
 
-		var subTF = makeTF(17, 0x888888);
-		subTF.text = "Loading, please wait...";
-		subTF.y    = titleTF.y + 54;
+		var subTF = makeTF(16, 0x777777);
+		subTF.text = "Initializing...";
+		subTF.y    = titleTF.y + 52;
 		addChild(subTF);
 
 		var barW:Float = sw * 0.68;
 		var barH:Float = 20;
 		var barX:Float = (sw - barW) / 2;
-		var barY:Float = sh * 0.47;
+		var barY:Float = sh * 0.46;
 
-		var barTrack = new Shape();
-		barTrack.graphics.beginFill(0x1A1A1A);
-		barTrack.graphics.drawRoundRect(barX, barY, barW, barH, 10, 10);
-		barTrack.graphics.endFill();
-		addChild(barTrack);
+		var barBg = new Shape();
+		barBg.graphics.beginFill(0x111111);
+		barBg.graphics.drawRoundRect(barX, barY, barW, barH, 10, 10);
+		barBg.graphics.endFill();
+		addChild(barBg);
 
 		var barFill = new Shape();
 		addChild(barFill);
 
-		var pctTF = makeTF(13, 0x555555);
-		pctTF.text = "0%";
+		var pctTF = makeTF(13, 0x444444);
+		pctTF.text = "";
 		pctTF.y    = barY - 22;
 		addChild(pctTF);
 
-		var libTF = makeTF(18, 0xDDDDDD);
-		libTF.text = "Preparing...";
-		libTF.y    = barY + barH + 12;
+		var libTF = makeTF(17, 0xDDDDDD);
+		libTF.text = "";
+		libTF.y    = barY + barH + 14;
 		addChild(libTF);
 
-		var fileTF = makeTF(13, 0x666666);
+		var fileTF = makeTF(13, 0x555555);
 		fileTF.text = "";
-		fileTF.y    = libTF.y + 28;
+		fileTF.y    = libTF.y + 26;
 		addChild(fileTF);
 
-		var countTF = makeTF(13, 0x444444);
+		var countTF = makeTF(13, 0x3A3A3A);
 		countTF.text = "";
 		countTF.y    = fileTF.y + 20;
 		addChild(countTF);
 
-		var statusTF = makeTF(15, 0x33AA55);
+		var statusTF = makeTF(15, 0x44CC66);
 		statusTF.text    = "";
 		statusTF.visible = false;
-		statusTF.y       = sh * 0.72;
+		statusTF.y       = sh * 0.74;
 		addChild(statusTF);
 
 		var mutex = new Mutex();
-		var state = {
-			pct:    0.0,
-			lib:    "Preparing...",
-			file:   "",
-			cur:    0,
-			total:  0,
-			status: "",
-			error:  "",
-			done:   false
-		};
+		var s = { pct: 0.0, lib: "", file: "", cur: 0, total: 0, status: "", err: "", done: false };
 
 		Thread.create(function()
 		{
@@ -292,96 +300,131 @@ class Main extends Sprite
 			{
 				Storage.init(function(pct:Float, lib:String, file:String, cur:Int, total:Int)
 				{
-					mutex.acquire();
-					state.pct   = pct;
-					state.lib   = lib;
-					state.file  = file;
-					state.cur   = cur;
-					state.total = total;
-					mutex.release();
+					try
+					{
+						mutex.acquire();
+						s.pct   = pct;
+						s.lib   = lib;
+						s.file  = file;
+						s.cur   = cur;
+						s.total = total;
+						mutex.release();
+					}
+					catch (_:Dynamic) {}
 				});
+
 				mutex.acquire();
-				state.status = 'Done  —  ${Storage.extractedFiles} extracted, ${Storage.skippedFiles} skipped';
-				state.done   = true;
+				s.status = '${Storage.extractedFiles} new files  ·  ${Storage.skippedFiles} unchanged';
+				s.done   = true;
 				mutex.release();
 			}
 			catch (e:Dynamic)
 			{
-				mutex.acquire();
-				state.error = Std.string(e);
-				state.done  = true;
-				mutex.release();
-				writeCrashLog("Storage.init: " + e);
+				try
+				{
+					writeCrashLog("Storage.init\n" + e);
+					mutex.acquire();
+					s.err  = Std.string(e);
+					s.done = true;
+					mutex.release();
+				}
+				catch (_:Dynamic) {}
 			}
 		});
 
+		var prevPct:Float = 0;
 		var onFrame:Event->Void = null;
 		onFrame = function(_)
 		{
-			mutex.acquire();
-			var pct    = state.pct;
-			var lib    = state.lib;
-			var file   = state.file;
-			var cur    = state.cur;
-			var total  = state.total;
-			var status = state.status;
-			var error  = state.error;
-			var done   = state.done;
-			mutex.release();
+			var pct    = 0.0;
+			var lib    = "";
+			var file   = "";
+			var cur    = 0;
+			var total  = 0;
+			var status = "";
+			var err    = "";
+			var done   = false;
 
-			// barra de progresso
-			barFill.graphics.clear();
-			if (pct > 0)
+			try
 			{
-				var fillW = barW * Math.min(pct, 1.0);
-				// gradiente simples: azul → verde conforme progresso
-				var r:Int = Std.int(0x33 + (0x00 - 0x33) * pct);
-				var g:Int = Std.int(0x66 + (0xCC - 0x66) * pct);
-				var b:Int = Std.int(0xFF + (0x55 - 0xFF) * pct);
-				barFill.graphics.beginFill((r << 16) | (g << 8) | b);
-				barFill.graphics.drawRoundRect(barX, barY, fillW, barH, 10, 10);
-				barFill.graphics.endFill();
+				mutex.acquire();
+				pct    = s.pct;
+				lib    = s.lib;
+				file   = s.file;
+				cur    = s.cur;
+				total  = s.total;
+				status = s.status;
+				err    = s.err;
+				done   = s.done;
+				mutex.release();
 			}
+			catch (_:Dynamic) {}
 
-			pctTF.text   = Std.int(pct * 100) + "%";
-			libTF.text   = lib;
-			fileTF.text  = file.length > 58 ? '...${file.substr(file.length - 55)}' : file;
-			countTF.text = total > 0 ? '${cur} / ${total} files' : "";
+			prevPct += (pct - prevPct) * 0.12;
+			if (pct >= 1.0) prevPct = 1.0;
 
-			if (error.length > 0)
+			try
 			{
-				libTF.text      = "Error during extraction";
-				fileTF.text     = error.length > 80 ? error.substr(0, 80) + "..." : error;
-				statusTF.text   = "Continuing anyway...";
-				statusTF.visible = true;
+				barFill.graphics.clear();
+				if (prevPct > 0)
+				{
+					var t:Float = prevPct;
+					var r:Int   = Std.int(0x22 * (1 - t) + 0x00 * t);
+					var g:Int   = Std.int(0x66 * (1 - t) + 0xDD * t);
+					var b:Int   = Std.int(0xFF * (1 - t) + 0x66 * t);
+					var hex:Int = (r << 16) | (g << 8) | b;
+					barFill.graphics.beginFill(hex);
+					barFill.graphics.drawRoundRect(barX, barY, barW * prevPct, barH, 10, 10);
+					barFill.graphics.endFill();
+				}
 			}
-			else if (status.length > 0)
+			catch (_:Dynamic) {}
+
+			try
 			{
-				statusTF.text    = status;
-				statusTF.visible = true;
+				var p = Std.int(prevPct * 100);
+				pctTF.text   = total > 0 ? '$p%' : "";
+				libTF.text   = lib;
+				fileTF.text  = file.length > 60 ? '...${file.substr(file.length - 57)}' : file;
+				countTF.text = total > 0 ? '$cur / $total files' : "";
 			}
+			catch (_:Dynamic) {}
+
+			try
+			{
+				if (err.length > 0)
+				{
+					libTF.text       = "Error — continuing anyway";
+					fileTF.text      = err.length > 72 ? err.substr(0, 72) + "…" : err;
+					statusTF.text    = "Some files may be missing.";
+					statusTF.visible = true;
+				}
+				else if (status.length > 0)
+				{
+					statusTF.text    = status;
+					statusTF.visible = true;
+				}
+			}
+			catch (_:Dynamic) {}
 
 			if (done)
 			{
-				stage.removeEventListener(Event.ENTER_FRAME, onFrame);
-				// pequena pausa visual antes de prosseguir
+				try { stage.removeEventListener(Event.ENTER_FRAME, onFrame); } catch (_:Dynamic) {}
 				haxe.Timer.delay(function()
 				{
-					removeChild(countTF);
-					removeChild(fileTF);
-					removeChild(libTF);
-					removeChild(statusTF);
-					removeChild(pctTF);
-					removeChild(barFill);
-					removeChild(barTrack);
-					removeChild(subTF);
-					removeChild(titleTF);
-					removeChild(bg);
+					for (child in [barFill, barBg, countTF, fileTF, libTF, statusTF, pctTF, subTF, titleTF, bg])
+						try { removeChild(child); } catch (_:Dynamic) {}
 					finishSetup();
-				}, 400);
+				}, 380);
 			}
 		};
-		stage.addEventListener(Event.ENTER_FRAME, onFrame);
+
+		try { stage.addEventListener(Event.ENTER_FRAME, onFrame); }
+		catch (e:Dynamic)
+		{
+			writeCrashLog("ENTER_FRAME\n" + e);
+			finishSetup();
+		}
 	}
 	#end
 
@@ -392,17 +435,21 @@ class Main extends Sprite
 			#if !debug
 			initialState = TitleState;
 			#end
+		}
+		catch (_:Dynamic) {}
 
-			#if desktop
-			try { Paths.getModFolders(); } catch (e:Dynamic) {}
-			#end
+		#if desktop
+		try { Paths.getModFolders(); } catch (_:Dynamic) {}
+		#end
 
+		try
+		{
 			addChild(new FlxGame(gameWidth, gameHeight, initialState, framerate, framerate, skipSplash, startFullscreen));
 		}
 		catch (e:Dynamic)
 		{
-			writeCrashLog("FlxGame init: " + e);
-			showCrashScreen("Failed to start game:\n" + Std.string(e));
+			writeCrashLog("FlxGame\n" + e);
+			showCrashScreen("Failed to initialize game engine:\n" + Std.string(e));
 			return;
 		}
 
@@ -414,27 +461,28 @@ class Main extends Sprite
 			if (fpsVar != null)
 				fpsVar.visible = ClientPrefs.showFPS;
 		}
-		catch (e:Dynamic) {}
+		catch (_:Dynamic) {}
 		#end
 
 		#if (html5 || mobile)
-		try { FlxG.autoPause     = false; } catch (e:Dynamic) {}
-		try { FlxG.mouse.visible = false; } catch (e:Dynamic) {}
+		try { FlxG.autoPause     = false; } catch (_:Dynamic) {}
+		try { FlxG.mouse.visible = false; } catch (_:Dynamic) {}
 		#end
 
 		#if android
-		try { lime.system.System.allowScreenTimeout = false; } catch (e:Dynamic) {}
+		try { lime.system.System.allowScreenTimeout = false; } catch (_:Dynamic) {}
 		#end
 
 		#if mobile
-		try { stage.addEventListener(Event.RESIZE, onStageResize); } catch (e:Dynamic) {}
+		try { stage.addEventListener(Event.RESIZE, onStageResize); } catch (_:Dynamic) {}
 		#end
 	}
 
 	#if mobile
 	private function onStageResize(E:Event):Void
 	{
-		try { FlxG.resizeGame(stage.stageWidth, stage.stageHeight); } catch (e:Dynamic) {}
+		try { FlxG.resizeGame(stage.stageWidth, stage.stageHeight); }
+		catch (_:Dynamic) {}
 	}
 	#end
 }
