@@ -15,6 +15,7 @@ class Storage
 	#if android
 	public static var externalPath(default, null):String = "";
 	public static var storagePath(default, null):String  = "";
+	public static var dataPath(default, null):String     = "";
 
 	static final APP_FOLDER:String   = ".PsychEngine042";
 	static final VERSION_FILE:String = ".version";
@@ -23,49 +24,99 @@ class Storage
 	public static function init():Void
 	{
 		externalPath = resolveExternalPath();
+		dataPath     = resolveDataPath();
 		storagePath  = '${externalPath}/${APP_FOLDER}';
 
 		mkdirAll([
 			storagePath,
 			'${storagePath}/assets',
-			'${storagePath}/mods'
+			'${storagePath}/mods',
+			dataPath,
+			'${dataPath}/assets',
+			'${dataPath}/mods'
 		]);
 
 		extractOnce();
 	}
 
+	// /sdcard/  via Environment.getExternalStorageDirectory()
 	static function resolveExternalPath():String
 	{
-		var getDir  = JNI.createStaticMethod(
-			"android/os/Environment",
-			"getExternalStorageDirectory",
-			"()Ljava/io/File;"
-		);
-		var getPath = JNI.createMemberMethod(
-			"java/io/File",
-			"getAbsolutePath",
-			"()Ljava/lang/String;"
-		);
-		return getPath(getDir());
+		try
+		{
+			var getDir  = JNI.createStaticMethod(
+				"android/os/Environment",
+				"getExternalStorageDirectory",
+				"()Ljava/io/File;"
+			);
+			var getPath = JNI.createMemberMethod(
+				"java/io/File",
+				"getAbsolutePath",
+				"()Ljava/lang/String;"
+			);
+			var result:String = getPath(getDir());
+			if (result != null && result.length > 0) return result;
+		}
+		catch (e:Dynamic) {}
+		return "/sdcard";
+	}
+
+	// /sdcard/Android/data/<package>/files/  via Context.getExternalFilesDir(null)
+	static function resolveDataPath():String
+	{
+		try
+		{
+			var getInstance = JNI.createStaticMethod(
+				"org/haxe/lime/GameActivity",
+				"getInstance",
+				"()Lorg/haxe/lime/GameActivity;"
+			);
+			var getExtFiles = JNI.createMemberMethod(
+				"android/content/Context",
+				"getExternalFilesDir",
+				"(Ljava/lang/String;)Ljava/io/File;"
+			);
+			var getAbsPath = JNI.createMemberMethod(
+				"java/io/File",
+				"getAbsolutePath",
+				"()Ljava/lang/String;"
+			);
+			var activity = getInstance();
+			var dir      = getExtFiles(activity, null);
+			var result:String = getAbsPath(dir);
+			if (result != null && result.length > 0) return result;
+		}
+		catch (e:Dynamic) {}
+		return '${externalPath}/Android/data';
 	}
 
 	static function mkdirAll(paths:Array<String>):Void
 	{
 		for (p in paths)
-			if (!FileSystem.exists(p))
-				FileSystem.createDirectory(p);
+		{
+			try
+			{
+				if (!FileSystem.exists(p))
+					FileSystem.createDirectory(p);
+			}
+			catch (e:Dynamic) {}
+		}
 	}
 
 	static function extractOnce():Void
 	{
 		var versionFile = '${storagePath}/${VERSION_FILE}';
-		var current     = FileSystem.exists(versionFile) ? StringTools.trim(File.getContent(versionFile)) : "";
+		var current     = FileSystem.exists(versionFile)
+			? StringTools.trim(File.getContent(versionFile))
+			: "";
 
-		if (current == APP_VERSION)
-			return;
+		if (current == APP_VERSION) return;
 
 		copyEmbeddedLibrary("assets", '${storagePath}/assets');
 		copyEmbeddedLibrary("mods",   '${storagePath}/mods');
+
+		// espelha mods também no caminho Android/data para fácil acesso pelo gerenciador
+		copyEmbeddedLibrary("mods", '${dataPath}/mods');
 
 		File.saveContent(versionFile, APP_VERSION);
 	}
@@ -88,14 +139,13 @@ class Storage
 			var destPath = '${dest}/${cleanKey}';
 			var destDir  = HxPath.directory(destPath);
 
-			if (!FileSystem.exists(destDir))
-				FileSystem.createDirectory(destDir);
-
-			if (FileSystem.exists(destPath))
-				continue;
-
 			try
 			{
+				if (!FileSystem.exists(destDir))
+					FileSystem.createDirectory(destDir);
+
+				if (FileSystem.exists(destPath)) continue;
+
 				var bytes = OpenFlAssets.getBytes(assetKey);
 				if (bytes != null)
 					File.saveBytes(destPath, bytes);
