@@ -331,6 +331,8 @@ class Paths
 	static public function mods(key:String = ''):String
 	{
 		#if android
+		if (Storage.dataPath != null && Storage.dataPath.length > 0)
+			return '${Storage.dataPath}/mods/${key}';
 		if (Storage.storagePath != null && Storage.storagePath.length > 0)
 			return '${Storage.storagePath}/mods/${key}';
 		#end
