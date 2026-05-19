@@ -274,12 +274,13 @@ class Paths
 
 	static public function getTextFromFile(key:String, ?ignoreMods:Bool = false):String
 	{
-		#if (sys && !mobile)
+		#if sys
 		if (!ignoreMods && FileSystem.exists(mods(key)))
 			return File.getContent(mods(key));
 
-		if (FileSystem.exists(getPreloadPath(key)))
-			return File.getContent(getPreloadPath(key));
+		var preloadPath = getPreloadPath(key);
+		if (FileSystem.exists(preloadPath))
+			return File.getContent(preloadPath);
 
 		if (currentLevel != null)
 		{
@@ -296,7 +297,10 @@ class Paths
 				return File.getContent(levelPath);
 		}
 		#end
-		return Assets.getText(getPath(key, TEXT));
+
+		// fallback: usa asset key do APK — nunca usa path absoluto externo
+		var apkKey = 'assets/$key';
+		return OpenFlAssets.exists(apkKey, TEXT) ? Assets.getText(apkKey) : '';
 	}
 
 	inline static public function font(key:String)
