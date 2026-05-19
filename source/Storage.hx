@@ -1,12 +1,12 @@
 package;
 
 #if android
-import android.AndroidContext;
-import android.AndroidEnvironment;
-import android.AndroidPermissions;
-import android.AndroidSettings;
-import android.AndroidVersion;
-import android.AndroidVersionCode;
+import AndroidContext;
+import AndroidEnvironment;
+import AndroidPermissions;
+import AndroidSettings;
+import AndroidVersion;
+import AndroidVersionCode;
 import sys.FileSystem;
 import sys.io.File;
 import openfl.utils.Assets as OpenFlAssets;
