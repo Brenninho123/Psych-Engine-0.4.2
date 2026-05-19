@@ -8,9 +8,6 @@ import openfl.Lib;
 import openfl.display.FPS;
 import openfl.display.Sprite;
 import openfl.events.Event;
-#if android
-import lime.system.JNI;
-#end
 
 class Main extends Sprite
 {
@@ -47,6 +44,11 @@ class Main extends Sprite
 
 	private function setupGame():Void
 	{
+		#if android
+		Storage.requestPermissions();
+		Storage.init();
+		#end
+
 		#if !debug
 		initialState = TitleState;
 		#end
@@ -71,54 +73,12 @@ class Main extends Sprite
 
 		#if android
 		lime.system.System.allowScreenTimeout = false;
-		requestExternalStoragePermission();
-		Storage.init();
 		#end
 
 		#if mobile
 		stage.addEventListener(Event.RESIZE, onStageResize);
 		#end
 	}
-
-	#if android
-	private function requestExternalStoragePermission():Void
-	{
-		var getActivity = JNI.createStaticMethod(
-			"org/haxe/lime/GameActivity",
-			"getInstance",
-			"()Lorg/haxe/lime/GameActivity;"
-		);
-		var activity = getActivity();
-
-		var sdkVersion:Int = JNI.createStaticField(
-			"android/os/Build$VERSION",
-			"SDK_INT",
-			"I"
-		).get();
-
-		var perms:Array<String> = [
-			"android.permission.READ_EXTERNAL_STORAGE",
-			"android.permission.WRITE_EXTERNAL_STORAGE"
-		];
-
-		if (sdkVersion >= 30)
-			perms.push("android.permission.MANAGE_EXTERNAL_STORAGE");
-
-		if (sdkVersion >= 33)
-		{
-			perms.push("android.permission.READ_MEDIA_IMAGES");
-			perms.push("android.permission.READ_MEDIA_AUDIO");
-			perms.push("android.permission.READ_MEDIA_VIDEO");
-		}
-
-		var requestPermissions = JNI.createMemberMethod(
-			"android/app/Activity",
-			"requestPermissions",
-			"([Ljava/lang/String;I)V"
-		);
-		requestPermissions(activity, perms, 0);
-	}
-	#end
 
 	#if mobile
 	private function onStageResize(E:Event):Void
