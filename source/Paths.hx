@@ -106,13 +106,27 @@ class Paths
 		return if (library == "preload" || library == "default") getPreloadPath(file); else getLibraryPathForce(file, library);
 	}
 
-	inline static function getLibraryPathForce(file:String, library:String)
+	static function getLibraryPathForce(file:String, library:String):String
 	{
+		#if android
+		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
+		{
+			var extPath:String = '${Storage.assetsPath}/${library}/${file}';
+			if (sys.FileSystem.exists(extPath)) return extPath;
+		}
+		#end
 		return '$library:assets/$library/$file';
 	}
 
-	inline public static function getPreloadPath(file:String = '')
+	public static function getPreloadPath(file:String = ''):String
 	{
+		#if android
+		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
+		{
+			var extPath:String = '${Storage.assetsPath}/${file}';
+			if (sys.FileSystem.exists(extPath)) return extPath;
+		}
+		#end
 		return 'assets/$file';
 	}
 
@@ -162,6 +176,18 @@ class Paths
 			return customSoundsLoaded.get(file);
 		}
 		#end
+		#if android
+		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
+		{
+			var extPath = '${Storage.assetsPath}/sounds/${key}.${SOUND_EXT}';
+			if (sys.FileSystem.exists(extPath))
+			{
+				if (!customSoundsLoaded.exists(extPath))
+					customSoundsLoaded.set(extPath, Sound.fromFile(extPath));
+				return customSoundsLoaded.get(extPath);
+			}
+		}
+		#end
 		return getPath('sounds/$key.$SOUND_EXT', SOUND, library);
 	}
 
@@ -170,7 +196,7 @@ class Paths
 		return sound(key + FlxG.random.int(min, max), library);
 	}
 
-	inline static public function music(key:String, ?library:String):Dynamic
+	static public function music(key:String, ?library:String):Dynamic
 	{
 		#if MODS_ALLOWED
 		var file:String = modsMusic(key);
@@ -179,6 +205,18 @@ class Paths
 			if (!customSoundsLoaded.exists(file))
 				customSoundsLoaded.set(file, Sound.fromFile(file));
 			return customSoundsLoaded.get(file);
+		}
+		#end
+		#if android
+		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
+		{
+			var extPath = '${Storage.assetsPath}/music/${key}.${SOUND_EXT}';
+			if (sys.FileSystem.exists(extPath))
+			{
+				if (!customSoundsLoaded.exists(extPath))
+					customSoundsLoaded.set(extPath, Sound.fromFile(extPath));
+				return customSoundsLoaded.get(extPath);
+			}
 		}
 		#end
 		return getPath('music/$key.$SOUND_EXT', MUSIC, library);
@@ -217,18 +255,26 @@ class Paths
 	}
 	#end
 
-	inline static public function image(key:String, ?library:String):Dynamic
+	static public function image(key:String, ?library:String):Dynamic
 	{
 		#if MODS_ALLOWED
 		var imageToReturn:FlxGraphic = addCustomGraphic(key);
 		if (imageToReturn != null) return imageToReturn;
+		#end
+		#if android
+		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
+		{
+			var sub = library != null && library != "preload" ? '${library}/images/${key}.png' : 'images/${key}.png';
+			var extPath = '${Storage.assetsPath}/${sub}';
+			if (sys.FileSystem.exists(extPath)) return extPath;
+		}
 		#end
 		return getPath('images/$key.png', IMAGE, library);
 	}
 
 	static public function getTextFromFile(key:String, ?ignoreMods:Bool = false):String
 	{
-		#if (sys)
+		#if (sys && !mobile)
 		if (!ignoreMods && FileSystem.exists(mods(key)))
 			return File.getContent(mods(key));
 
