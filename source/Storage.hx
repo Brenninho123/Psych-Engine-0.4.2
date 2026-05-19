@@ -1,8 +1,12 @@
 package;
 
 #if android
-import lime.system.JNI;
-import lime.system.System as LimeSystem;
+import android.AndroidContext;
+import android.AndroidEnvironment;
+import android.AndroidPermissions;
+import android.AndroidSettings;
+import android.AndroidVersion;
+import android.AndroidVersionCode;
 import sys.FileSystem;
 import sys.io.File;
 import openfl.utils.Assets as OpenFlAssets;
@@ -19,9 +23,9 @@ class Storage
 	static final VERSION_FILE:String = ".version";
 	static final APP_VERSION:String  = "0.4.2";
 
-	public static function init():Void
+	public static function init(?onProgress:Float->String->Void):Void
 	{
-		storagePath = getExternalDataPath();
+		storagePath = AndroidContext.getExternalFilesDir();
 
 		try
 		{
@@ -30,169 +34,69 @@ class Storage
 			if (!FileSystem.exists('${storagePath}/mods'))
 				FileSystem.createDirectory('${storagePath}/mods');
 		}
-		catch (e:Dynamic)
-		{
-			LimeSystem.exit(1);
-		}
+		catch (e:Dynamic) {}
 
-		extractOnce();
+		extractOnce(onProgress);
 	}
 
 	public static function requestPermissions():Void
 	{
-		var sdkInt:Int = getSdkInt();
-
-		if (sdkInt >= 33)
-			requestRuntimePermissions(["android.permission.READ_MEDIA_IMAGES",
-			                           "android.permission.READ_MEDIA_VIDEO",
-			                           "android.permission.READ_MEDIA_AUDIO"]);
+		if (AndroidVersion.SDK_INT >= AndroidVersionCode.TIRAMISU)
+			AndroidPermissions.requestPermissions([
+				'READ_MEDIA_IMAGES',
+				'READ_MEDIA_VIDEO',
+				'READ_MEDIA_AUDIO'
+			]);
 		else
-			requestRuntimePermissions(["android.permission.READ_EXTERNAL_STORAGE",
-			                           "android.permission.WRITE_EXTERNAL_STORAGE"]);
+			AndroidPermissions.requestPermissions([
+				'READ_EXTERNAL_STORAGE',
+				'WRITE_EXTERNAL_STORAGE'
+			]);
 
-		if (sdkInt >= 30 && !isExternalStorageManager())
-			openManageStorageSettings();
-	}
-
-	// /sdcard/Android/data/<package>/files  via Context.getExternalFilesDir(null)
-	static function getExternalDataPath():String
-	{
-		try
+		if (!AndroidEnvironment.isExternalStorageManager())
 		{
-			var getInstance = JNI.createStaticMethod(
-				"org/haxe/lime/GameActivity",
-				"getInstance",
-				"()Lorg/haxe/lime/GameActivity;"
-			);
-			var getExtFiles = JNI.createMemberMethod(
-				"android/content/Context",
-				"getExternalFilesDir",
-				"(Ljava/lang/String;)Ljava/io/File;"
-			);
-			var getAbsPath = JNI.createMemberMethod(
-				"java/io/File",
-				"getAbsolutePath",
-				"()Ljava/lang/String;"
-			);
-			var result:String = getAbsPath(getExtFiles(getInstance(), null));
-			if (result != null && result.length > 0) return result;
+			if (AndroidVersion.SDK_INT >= AndroidVersionCode.S)
+				AndroidSettings.requestSetting('REQUEST_MANAGE_MEDIA');
+			AndroidSettings.requestSetting('MANAGE_APP_ALL_FILES_ACCESS_PERMISSION');
 		}
-		catch (e:Dynamic) {}
-		return "/sdcard/Android/data/com.shadowmario.psychengine042/files";
 	}
 
-	static function getSdkInt():Int
-	{
-		try
-		{
-			return JNI.createStaticField("android/os/Build$VERSION", "SDK_INT", "I").get();
-		}
-		catch (e:Dynamic) {}
-		return 0;
-	}
-
-	static function isExternalStorageManager():Bool
-	{
-		try
-		{
-			return JNI.createStaticMethod("android/os/Environment", "isExternalStorageManager", "()Z")();
-		}
-		catch (e:Dynamic) {}
-		return false;
-	}
-
-	static function requestRuntimePermissions(perms:Array<String>):Void
-	{
-		try
-		{
-			var getInstance    = JNI.createStaticMethod(
-				"org/haxe/lime/GameActivity",
-				"getInstance",
-				"()Lorg/haxe/lime/GameActivity;"
-			);
-			var requestPerms = JNI.createMemberMethod(
-				"android/app/Activity",
-				"requestPermissions",
-				"([Ljava/lang/String;I)V"
-			);
-			requestPerms(getInstance(), perms, 0);
-		}
-		catch (e:Dynamic) {}
-	}
-
-	static function openManageStorageSettings():Void
-	{
-		try
-		{
-			var getInstance  = JNI.createStaticMethod(
-				"org/haxe/lime/GameActivity",
-				"getInstance",
-				"()Lorg/haxe/lime/GameActivity;"
-			);
-			var uriParse     = JNI.createStaticMethod(
-				"android/net/Uri",
-				"parse",
-				"(Ljava/lang/String;)Landroid/net/Uri;"
-			);
-			var newIntent    = JNI.createStaticMethod(
-				"android/content/Intent",
-				"<init>",  // workaround: usamos startActivity via reflection
-				"(Ljava/lang/String;Landroid/net/Uri;)V"
-			);
-			var startActivity = JNI.createMemberMethod(
-				"android/app/Activity",
-				"startActivity",
-				"(Landroid/content/Intent;)V"
-			);
-			var getPackageName = JNI.createMemberMethod(
-				"android/content/Context",
-				"getPackageName",
-				"()Ljava/lang/String;"
-			);
-			var activity   = getInstance();
-			var pkgName:String = getPackageName(activity);
-			var uri        = uriParse("package:" + pkgName);
-
-			var intentCtor = JNI.createMemberMethod(
-				"android/content/Intent",
-				"<init>",
-				"(Ljava/lang/String;Landroid/net/Uri;)V"
-			);
-			var ACTION = "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION";
-			var intent = JNI.createStaticMethod(
-				"android/content/Intent",
-				"<init>",
-				"()V"
-			)();
-			startActivity(activity, intent);
-		}
-		catch (e:Dynamic) {}
-	}
-
-	static function extractOnce():Void
+	static function extractOnce(?onProgress:Float->String->Void):Void
 	{
 		var versionFile = '${storagePath}/${VERSION_FILE}';
 		var current     = FileSystem.exists(versionFile)
 			? StringTools.trim(File.getContent(versionFile))
 			: "";
 
-		if (current == APP_VERSION) return;
+		if (current == APP_VERSION)
+		{
+			if (onProgress != null) onProgress(1.0, "Done.");
+			return;
+		}
 
-		copyEmbeddedLibrary("mods", '${storagePath}/mods');
+		copyEmbeddedLibrary("mods", '${storagePath}/mods', onProgress);
 
 		File.saveContent(versionFile, APP_VERSION);
+
+		if (onProgress != null) onProgress(1.0, "Done.");
 	}
 
-	static function copyEmbeddedLibrary(prefix:String, dest:String):Void
+	static function copyEmbeddedLibrary(prefix:String, dest:String, ?onProgress:Float->String->Void):Void
 	{
 		var all:Array<String> = [];
 		try   { all = OpenFlAssets.list(); }
 		catch (e:Dynamic) {}
 
-		for (assetKey in all)
+		var filtered:Array<String> = all.filter(function(k)
+			return k.startsWith(prefix + ":") || k.startsWith(prefix + "/")
+		);
+
+		var total = filtered.length;
+		var idx   = 0;
+
+		for (assetKey in filtered)
 		{
-			if (!assetKey.startsWith(prefix + ":") && !assetKey.startsWith(prefix + "/"))
-				continue;
+			idx++;
 
 			var cleanKey = assetKey
 				.replace(prefix + ":", "")
@@ -200,6 +104,9 @@ class Storage
 
 			var destPath = '${dest}/${cleanKey}';
 			var destDir  = HxPath.directory(destPath);
+
+			if (onProgress != null)
+				onProgress(idx / total, 'Extracting: ${cleanKey}');
 
 			try
 			{
