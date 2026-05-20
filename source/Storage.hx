@@ -7,10 +7,10 @@ import extension.androidtools.Settings as AndroidSettings;
 import extension.androidtools.Permissions as AndroidPermissions;
 import extension.androidtools.os.Build.VERSION as AndroidVersion;
 import extension.androidtools.os.Build.VERSION_CODES as AndroidVersionCode;
-import lime.system.System as LimeSystem;
+import openfl.utils.AssetType;
+import openfl.utils.Assets as OpenFlAssets;
 import sys.FileSystem;
 import sys.io.File;
-import openfl.utils.Assets as OpenFlAssets;
 import haxe.io.Path as HxPath;
 import haxe.io.Bytes;
 #end
@@ -20,26 +20,31 @@ using StringTools;
 class Storage
 {
 	#if android
-	public static var storagePath(default, null):String  = "";
-	public static var assetsPath(default, null):String   = "";
-	public static var modsPath(default, null):String     = "";
+	public static var storagePath(default, null):String = "";
+	public static var assetsPath(default, null):String  = "";
+	public static var modsPath(default, null):String    = "";
 
 	public static var extractedFiles:Int = 0;
 	public static var skippedFiles:Int   = 0;
+	public static var errorFiles:Int     = 0;
 	public static var totalFiles:Int     = 0;
 
 	static final VERSION_FILE:String = ".version";
 	static final APP_VERSION:String  = "0.4.2";
 
-	static final EXTRACT_LIBS:Array<String> = [
-		"assets",
-		"shared",
-		"week2",
-		"week3",
-		"week4",
-		"week5",
-		"week6",
+	static final LIBS:Array<String> = [
+		"assets", "shared",
+		"week2", "week3", "week4", "week5", "week6",
 		"mods"
+	];
+
+	static final SCAN_TYPES:Array<AssetType> = [
+		AssetType.TEXT,
+		AssetType.IMAGE,
+		AssetType.SOUND,
+		AssetType.MUSIC,
+		AssetType.BINARY,
+		AssetType.FONT
 	];
 
 	public static function init(?onProgress:Float->String->String->Int->Int->Void):Void
@@ -49,17 +54,11 @@ class Storage
 			storagePath = resolveExternalDataPath();
 			assetsPath  = '${storagePath}/assets';
 			modsPath    = '${storagePath}/mods';
-
-			mkdirSafe([
-				storagePath,
-				assetsPath,
-				modsPath,
-				'${assetsPath}/shared'
-			]);
+			mkdirSafe([storagePath, assetsPath, modsPath]);
 		}
-		catch (e:Dynamic) {}
+		catch (_:Dynamic) {}
 
-		extractAll(onProgress);
+		runExtraction(onProgress);
 	}
 
 	public static function requestPermissions():Void
@@ -67,18 +66,11 @@ class Storage
 		try
 		{
 			if (AndroidVersion.SDK_INT >= AndroidVersionCode.TIRAMISU)
-				AndroidPermissions.requestPermissions([
-					"READ_MEDIA_IMAGES",
-					"READ_MEDIA_VIDEO",
-					"READ_MEDIA_AUDIO"
-				]);
+				AndroidPermissions.requestPermissions(["READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "READ_MEDIA_AUDIO"]);
 			else
-				AndroidPermissions.requestPermissions([
-					"READ_EXTERNAL_STORAGE",
-					"WRITE_EXTERNAL_STORAGE"
-				]);
+				AndroidPermissions.requestPermissions(["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]);
 		}
-		catch (e:Dynamic) {}
+		catch (_:Dynamic) {}
 
 		try
 		{
@@ -89,89 +81,127 @@ class Storage
 				AndroidSettings.requestSetting("MANAGE_APP_ALL_FILES_ACCESS_PERMISSION");
 			}
 		}
-		catch (e:Dynamic) {}
-	}
-
-	public static function needsExtract(destPath:String, bytes:Bytes):Bool
-	{
-		try
-		{
-			if (!FileSystem.exists(destPath)) return true;
-			var stat = FileSystem.stat(destPath);
-			return stat.size != bytes.length || stat.size == 0;
-		}
-		catch (e:Dynamic) {}
-		return true;
+		catch (_:Dynamic) {}
 	}
 
 	static function resolveExternalDataPath():String
 	{
 		try
 		{
-			var result:String = AndroidContext.getExternalFilesDir();
-			if (result != null && result.length > 0) return result;
+			var r:String = AndroidContext.getExternalFilesDir();
+			if (r != null && r.length > 0) return r;
 		}
-		catch (e:Dynamic) {}
+		catch (_:Dynamic) {}
 		return "/sdcard/Android/data/com.shadowmario.psychengine042/files";
-	}
-
-	static function mkdirSafe(paths:Array<String>):Void
-	{
-		for (p in paths)
-			try { if (!FileSystem.exists(p)) FileSystem.createDirectory(p); }
-			catch (e:Dynamic) {}
 	}
 
 	static function destForLib(lib:String):String
 	{
 		return switch (lib)
 		{
-			case "mods":   modsPath;
 			case "assets": assetsPath;
+			case "mods":   modsPath;
 			default:       '${assetsPath}/${lib}';
-		}
+		};
 	}
 
-	static function extractAll(?onProgress:Float->String->String->Int->Int->Void):Void
+	static function mkdirSafe(paths:Array<String>):Void
 	{
-		var versionFile = '${storagePath}/${VERSION_FILE}';
-		var current     = "";
+		for (p in paths)
+			try { if (!FileSystem.exists(p)) FileSystem.createDirectory(p); }
+			catch (_:Dynamic) {}
+	}
+
+	static function mkdirForFile(filePath:String):Void
+	{
 		try
 		{
-			current = FileSystem.exists(versionFile)
-				? StringTools.trim(File.getContent(versionFile))
-				: "";
+			var dir = HxPath.directory(filePath);
+			if (dir != null && dir.length > 0 && !FileSystem.exists(dir))
+				FileSystem.createDirectory(dir);
 		}
-		catch (e:Dynamic) {}
+		catch (_:Dynamic) {}
+	}
+
+	static function needsWrite(destPath:String, bytes:Bytes):Bool
+	{
+		try
+		{
+			if (!FileSystem.exists(destPath)) return true;
+			var s = FileSystem.stat(destPath);
+			return s.size == 0 || s.size != bytes.length;
+		}
+		catch (_:Dynamic) {}
+		return true;
+	}
+
+	static function scanAllKeys():Array<String>
+	{
+		var seen = new Map<String, Bool>();
+		var keys = new Array<String>();
+
+		for (type in SCAN_TYPES)
+		{
+			var list:Array<String> = [];
+			try { list = OpenFlAssets.list(type); } catch (_:Dynamic) {}
+
+			for (k in list)
+				if (k != null && k.length > 0 && !seen.exists(k))
+				{
+					seen.set(k, true);
+					keys.push(k);
+				}
+		}
+
+		var listAll:Array<String> = [];
+		try { listAll = OpenFlAssets.list(); } catch (_:Dynamic) {}
+
+		for (k in listAll)
+			if (k != null && k.length > 0 && !seen.exists(k))
+			{
+				seen.set(k, true);
+				keys.push(k);
+			}
+
+		return keys;
+	}
+
+	static function runExtraction(?onProgress:Float->String->String->Int->Int->Void):Void
+	{
+		var vf      = '${storagePath}/${VERSION_FILE}';
+		var current = "";
+		try { current = FileSystem.exists(vf) ? StringTools.trim(File.getContent(vf)) : ""; }
+		catch (_:Dynamic) {}
 
 		if (current == APP_VERSION)
 		{
-			if (onProgress != null)
-				try { onProgress(1.0, "Up to date", "", 0, 0); } catch (_:Dynamic) {}
+			try { if (onProgress != null) onProgress(1.0, "Up to date", "", 0, 0); } catch (_:Dynamic) {}
 			return;
 		}
 
 		extractedFiles = 0;
 		skippedFiles   = 0;
+		errorFiles     = 0;
 
-		var allAssets:Array<String> = [];
-		try { allAssets = OpenFlAssets.list(); } catch (e:Dynamic) {}
+		var allKeys = scanAllKeys();
 
 		var queue:Array<{key:String, dest:String, label:String}> = [];
 
-		for (lib in EXTRACT_LIBS)
+		for (lib in LIBS)
 		{
 			var dest  = destForLib(lib);
 			var label = lib.charAt(0).toUpperCase() + lib.substr(1);
 
-			mkdirSafe([dest]);
-
-			for (key in allAssets)
+			for (key in allKeys)
 			{
-				if (!matchesLib(key, lib)) continue;
-				var cleanKey = stripLibPrefix(key, lib);
-				if (cleanKey == null || cleanKey.length == 0) continue;
-				queue.push({ key: key, dest: '${dest}/${cleanKey}', label: label });
+				var matchColon = key.startsWith(lib + ":");
+				var matchSlash = key.startsWith(lib + "/");
+				if (!matchColon && !matchSlash) continue;
+
+				var clean = matchColon ? key.substr(lib.length + 1) : key.substr(lib.length + 1);
+				if (clean == null || clean.length == 0) continue;
+
+				queue.push({ key: key, dest: '${dest}/${clean}', label: label });
 			}
 		}
 
@@ -181,22 +211,27 @@ class Storage
 		for (item in queue)
 		{
 			done++;
-			var pct      = totalFiles > 0 ? done / totalFiles : 1.0;
-			var filename = HxPath.withoutDirectory(item.dest);
 
-			if (onProgress != null)
-				try { onProgress(pct, item.label, filename, done, totalFiles); } catch (_:Dynamic) {}
+			var pct  = totalFiles > 0 ? done / totalFiles : 1.0;
+			var name = HxPath.withoutDirectory(item.dest);
+
+			try { if (onProgress != null) onProgress(pct, item.label, name, done, totalFiles); }
+			catch (_:Dynamic) {}
 
 			try
 			{
-				var destDir = HxPath.directory(item.dest);
-				if (destDir != null && destDir.length > 0 && !FileSystem.exists(destDir))
-					FileSystem.createDirectory(destDir);
+				mkdirForFile(item.dest);
 
-				var bytes = OpenFlAssets.getBytes(item.key);
-				if (bytes == null) continue;
+				var bytes:Bytes = null;
+				try { bytes = OpenFlAssets.getBytes(item.key); } catch (_:Dynamic) {}
 
-				if (!needsExtract(item.dest, bytes))
+				if (bytes == null)
+				{
+					errorFiles++;
+					continue;
+				}
+
+				if (!needsWrite(item.dest, bytes))
 				{
 					skippedFiles++;
 					continue;
@@ -205,24 +240,19 @@ class Storage
 				File.saveBytes(item.dest, bytes);
 				extractedFiles++;
 			}
-			catch (e:Dynamic) {}
+			catch (_:Dynamic) { errorFiles++; }
 		}
 
-		try { File.saveContent(versionFile, APP_VERSION); } catch (e:Dynamic) {}
+		try { File.saveContent(vf, APP_VERSION); } catch (_:Dynamic) {}
 
-		if (onProgress != null)
-			try { onProgress(1.0, "Done", '${extractedFiles} extracted · ${skippedFiles} unchanged', totalFiles, totalFiles); }
-			catch (_:Dynamic) {}
-	}
-
-	static function matchesLib(key:String, lib:String):Bool
-	{
-		return key.startsWith(lib + ":") || key.startsWith(lib + "/");
-	}
-
-	static function stripLibPrefix(key:String, lib:String):String
-	{
-		return key.replace(lib + ":", "").replace(lib + "/", "");
+		try
+		{
+			if (onProgress != null)
+				onProgress(1.0, "Complete",
+					'${extractedFiles} extracted  ·  ${skippedFiles} unchanged  ·  ${errorFiles} errors',
+					totalFiles, totalFiles);
+		}
+		catch (_:Dynamic) {}
 	}
 	#end
 }
