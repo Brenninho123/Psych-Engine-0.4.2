@@ -9,6 +9,8 @@ import extension.androidtools.os.Build.VERSION as AndroidVersion;
 import extension.androidtools.os.Build.VERSION_CODES as AndroidVersionCode;
 import openfl.utils.AssetType;
 import openfl.utils.Assets as OpenFlAssets;
+import lime.utils.Assets as LimeAssets;
+import sys.thread.Lock;
 import sys.FileSystem;
 import sys.io.File;
 import haxe.io.Path as HxPath;
@@ -32,6 +34,12 @@ class Storage
 	static final VERSION_FILE:String = ".version";
 	static final APP_VERSION:String  = "0.4.2";
 
+	static final LIB_NAMES:Array<String> = [
+		"shared",
+		"week2", "week3", "week4",
+		"week5", "week6"
+	];
+
 	static final SCAN_TYPES:Array<AssetType> = [
 		AssetType.TEXT,
 		AssetType.IMAGE,
@@ -39,11 +47,6 @@ class Storage
 		AssetType.MUSIC,
 		AssetType.BINARY,
 		AssetType.FONT
-	];
-
-	static final KNOWN_PREFIXES:Array<String> = [
-		"assets/",
-		"mods/"
 	];
 
 	public static function init(?onProgress:Float->String->String->Int->Int->Void):Void
@@ -124,7 +127,34 @@ class Storage
 		catch (_:Dynamic) {}
 	}
 
-	// Normaliza a key: remove prefixo "lib:" se existir, retorna o path real no APK
+	// Carrega uma biblioteca nomeada e bloqueia até completar (timeout 8s)
+	static function loadLibrarySync(name:String):Void
+	{
+		try
+		{
+			if (LimeAssets.getLibrary(name) != null) return;
+
+			var future = LimeAssets.loadLibrary(name);
+
+			if (future == null) return;
+
+			if (future.isComplete) return;
+
+			var lock = new Lock();
+			future.onComplete(function(_) lock.release());
+			future.onError(function(_)   lock.release());
+			lock.wait(8.0);
+		}
+		catch (_:Dynamic) {}
+	}
+
+	// Força o carregamento de todas as bibliotecas conhecidas
+	static function ensureAllLibrariesLoaded():Void
+	{
+		for (name in LIB_NAMES)
+			loadLibrarySync(name);
+	}
+
 	static function normalizePath(key:String):Null<String>
 	{
 		if (key == null || key.length == 0) return null;
@@ -136,35 +166,31 @@ class Storage
 		return p;
 	}
 
-	// Retorna o path de destino externo a partir do path real do APK
-	static function destPath(normalizedKey:String):Null<String>
+	static function destForNormalized(norm:String):Null<String>
 	{
-		if (normalizedKey.startsWith("assets/"))
-			return '${storagePath}/${normalizedKey}';
-		if (normalizedKey.startsWith("mods/"))
-			return '${storagePath}/${normalizedKey}';
+		if (norm.startsWith("assets/")) return '${storagePath}/${norm}';
+		if (norm.startsWith("mods/"))   return '${storagePath}/${norm}';
 		return null;
 	}
 
-	// Label de progresso baseado no subdiretório real
-	static function labelFor(normalizedKey:String):String
+	static function labelFor(norm:String):String
 	{
-		if (normalizedKey.startsWith("assets/characters/")) return "Characters";
-		if (normalizedKey.startsWith("assets/data/"))       return "Data";
-		if (normalizedKey.startsWith("assets/fonts/"))      return "Fonts";
-		if (normalizedKey.startsWith("assets/images/"))     return "Images";
-		if (normalizedKey.startsWith("assets/music/"))      return "Music";
-		if (normalizedKey.startsWith("assets/songs/"))      return "Songs";
-		if (normalizedKey.startsWith("assets/sounds/"))     return "Sounds";
-		if (normalizedKey.startsWith("assets/stages/"))     return "Stages";
-		if (normalizedKey.startsWith("assets/weeks/"))      return "Weeks";
-		if (normalizedKey.startsWith("assets/shared/"))     return "Shared";
-		if (normalizedKey.startsWith("assets/week2/"))      return "Week 2";
-		if (normalizedKey.startsWith("assets/week3/"))      return "Week 3";
-		if (normalizedKey.startsWith("assets/week4/"))      return "Week 4";
-		if (normalizedKey.startsWith("assets/week5/"))      return "Week 5";
-		if (normalizedKey.startsWith("assets/week6/"))      return "Week 6";
-		if (normalizedKey.startsWith("mods/"))              return "Mods";
+		if (norm.startsWith("assets/characters/")) return "Characters";
+		if (norm.startsWith("assets/data/"))       return "Data";
+		if (norm.startsWith("assets/fonts/"))      return "Fonts";
+		if (norm.startsWith("assets/images/"))     return "Images";
+		if (norm.startsWith("assets/music/"))      return "Music";
+		if (norm.startsWith("assets/songs/"))      return "Songs";
+		if (norm.startsWith("assets/sounds/"))     return "Sounds";
+		if (norm.startsWith("assets/stages/"))     return "Stages";
+		if (norm.startsWith("assets/weeks/"))      return "Weeks";
+		if (norm.startsWith("assets/shared/"))     return "Shared";
+		if (norm.startsWith("assets/week2/"))      return "Week 2";
+		if (norm.startsWith("assets/week3/"))      return "Week 3";
+		if (norm.startsWith("assets/week4/"))      return "Week 4";
+		if (norm.startsWith("assets/week5/"))      return "Week 5";
+		if (norm.startsWith("assets/week6/"))      return "Week 6";
+		if (norm.startsWith("mods/"))              return "Mods";
 		return "Assets";
 	}
 
@@ -177,8 +203,9 @@ class Storage
 		{
 			if (k == null || k.length == 0) return;
 			var norm = normalizePath(k);
-			if (norm == null || seen.exists(norm)) return;
-			if (destPath(norm) == null) return;
+			if (norm == null || norm.length == 0) return;
+			if (seen.exists(norm)) return;
+			if (destForNormalized(norm) == null) return;
 			seen.set(norm, true);
 			result.push({key: k, norm: norm});
 		}
@@ -193,6 +220,28 @@ class Storage
 		var all:Array<String> = [];
 		try { all = OpenFlAssets.list(); } catch (_:Dynamic) {}
 		for (k in all) add(k);
+
+		// Varre cada biblioteca nomeada diretamente via LimeAssets
+		for (name in LIB_NAMES)
+		{
+			try
+			{
+				var lib = LimeAssets.getLibrary(name);
+				if (lib == null) continue;
+
+				for (type in SCAN_TYPES)
+				{
+					var libList:Array<String> = [];
+					try { libList = lib.list(type); } catch (_:Dynamic) {}
+					for (k in libList) add(k);
+				}
+
+				var libAll:Array<String> = [];
+				try { libAll = lib.list(null); } catch (_:Dynamic) {}
+				for (k in libAll) add(k);
+			}
+			catch (_:Dynamic) {}
+		}
 
 		return result;
 	}
@@ -210,6 +259,10 @@ class Storage
 			return;
 		}
 
+		try { if (onProgress != null) onProgress(0.0, "Loading libraries...", "", 0, 0); } catch (_:Dynamic) {}
+
+		ensureAllLibrariesLoaded();
+
 		extractedFiles = 0;
 		skippedFiles   = 0;
 		errorFiles     = 0;
@@ -221,7 +274,7 @@ class Storage
 		for (item in queue)
 		{
 			done++;
-			var dest  = destPath(item.norm);
+			var dest  = destForNormalized(item.norm);
 			var label = labelFor(item.norm);
 			var name  = HxPath.withoutDirectory(item.norm);
 			var pct   = totalFiles > 0 ? done / totalFiles : 1.0;
