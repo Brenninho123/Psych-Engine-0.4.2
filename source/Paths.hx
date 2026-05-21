@@ -108,25 +108,11 @@ class Paths
 
 	static function getLibraryPathForce(file:String, library:String):String
 	{
-		#if android
-		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
-		{
-			var extPath:String = '${Storage.assetsPath}/${library}/${file}';
-			if (sys.FileSystem.exists(extPath)) return extPath;
-		}
-		#end
 		return '$library:assets/$library/$file';
 	}
 
 	public static function getPreloadPath(file:String = ''):String
 	{
-		#if android
-		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
-		{
-			var extPath:String = '${Storage.assetsPath}/${file}';
-			if (sys.FileSystem.exists(extPath)) return extPath;
-		}
-		#end
 		return 'assets/$file';
 	}
 
@@ -278,6 +264,28 @@ class Paths
 		if (!ignoreMods && FileSystem.exists(mods(key)))
 			return File.getContent(mods(key));
 
+		#if android
+		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
+		{
+			var ext = '${Storage.assetsPath}/${key}';
+			if (FileSystem.exists(ext))
+				return File.getContent(ext);
+
+			if (currentLevel != null && currentLevel != 'shared')
+			{
+				var extLevel = '${Storage.assetsPath}/${currentLevel}/${key}';
+				if (FileSystem.exists(extLevel))
+					return File.getContent(extLevel);
+			}
+
+			if (currentLevel != null)
+			{
+				var extShared = '${Storage.assetsPath}/shared/${key}';
+				if (FileSystem.exists(extShared))
+					return File.getContent(extShared);
+			}
+		}
+		#else
 		var preloadPath = getPreloadPath(key);
 		if (FileSystem.exists(preloadPath))
 			return File.getContent(preloadPath);
@@ -297,8 +305,8 @@ class Paths
 				return File.getContent(levelPath);
 		}
 		#end
+		#end
 
-		// fallback: usa asset key do APK — nunca usa path absoluto externo
 		var apkKey = 'assets/$key';
 		return OpenFlAssets.exists(apkKey, TEXT) ? Assets.getText(apkKey) : '';
 	}
