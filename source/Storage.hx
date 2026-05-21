@@ -49,6 +49,10 @@ class Storage
 		AssetType.FONT
 	];
 
+	static final LIME_TYPES:Array<String> = [
+		"TEXT", "IMAGE", "SOUND", "MUSIC", "BINARY", "FONT"
+	];
+
 	public static function init(?onProgress:Float->String->String->Int->Int->Void):Void
 	{
 		try
@@ -229,15 +233,15 @@ class Storage
 				var lib = LimeAssets.getLibrary(name);
 				if (lib == null) continue;
 
-				for (type in SCAN_TYPES)
+				for (ltype in LIME_TYPES)
 				{
 					var libList:Array<String> = [];
-					try { libList = lib.list(type); } catch (_:Dynamic) {}
+					try { libList = lib.list(ltype); } catch (_:Dynamic) {}
 					for (k in libList) add(k);
 				}
 
 				var libAll:Array<String> = [];
-				try { libAll = lib.list(null); } catch (_:Dynamic) {}
+				try { libAll = lib.list(cast null); } catch (_:Dynamic) {}
 				for (k in libAll) add(k);
 			}
 			catch (_:Dynamic) {}
