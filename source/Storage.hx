@@ -10,7 +10,6 @@ import extension.androidtools.os.Build.VERSION_CODES as AndroidVersionCode;
 import openfl.utils.AssetType;
 import openfl.utils.Assets as OpenFlAssets;
 import lime.utils.Assets as LimeAssets;
-import sys.thread.Lock;
 import sys.FileSystem;
 import sys.io.File;
 import haxe.io.Path as HxPath;
@@ -34,10 +33,9 @@ class Storage
 	static final VERSION_FILE:String = ".version";
 	static final APP_VERSION:String  = "0.4.2";
 
-	static final LIB_NAMES:Array<String> = [
-		"shared",
-		"week2", "week3", "week4",
-		"week5", "week6"
+	static final ALL_LIB_NAMES:Array<String> = [
+		"default", "shared",
+		"week2", "week3", "week4", "week5", "week6"
 	];
 
 	static final SCAN_TYPES:Array<AssetType> = [
@@ -131,34 +129,6 @@ class Storage
 		catch (_:Dynamic) {}
 	}
 
-	// Carrega uma biblioteca nomeada e bloqueia até completar (timeout 8s)
-	static function loadLibrarySync(name:String):Void
-	{
-		try
-		{
-			if (LimeAssets.getLibrary(name) != null) return;
-
-			var future = LimeAssets.loadLibrary(name);
-
-			if (future == null) return;
-
-			if (future.isComplete) return;
-
-			var lock = new Lock();
-			future.onComplete(function(_) lock.release());
-			future.onError(function(_)   lock.release());
-			lock.wait(8.0);
-		}
-		catch (_:Dynamic) {}
-	}
-
-	// Força o carregamento de todas as bibliotecas conhecidas
-	static function ensureAllLibrariesLoaded():Void
-	{
-		for (name in LIB_NAMES)
-			loadLibrarySync(name);
-	}
-
 	static function normalizePath(key:String):Null<String>
 	{
 		if (key == null || key.length == 0) return null;
@@ -225,8 +195,7 @@ class Storage
 		try { all = OpenFlAssets.list(); } catch (_:Dynamic) {}
 		for (k in all) add(k);
 
-		// Varre cada biblioteca nomeada diretamente via LimeAssets
-		for (name in LIB_NAMES)
+		for (name in ALL_LIB_NAMES)
 		{
 			try
 			{
@@ -235,14 +204,14 @@ class Storage
 
 				for (ltype in LIME_TYPES)
 				{
-					var libList:Array<String> = [];
-					try { libList = lib.list(ltype); } catch (_:Dynamic) {}
-					for (k in libList) add(k);
+					var list:Array<String> = [];
+					try { list = lib.list(ltype); } catch (_:Dynamic) {}
+					for (k in list) add(k);
 				}
 
-				var libAll:Array<String> = [];
-				try { libAll = lib.list(cast null); } catch (_:Dynamic) {}
-				for (k in libAll) add(k);
+				var listAll:Array<String> = [];
+				try { listAll = lib.list(cast null); } catch (_:Dynamic) {}
+				for (k in listAll) add(k);
 			}
 			catch (_:Dynamic) {}
 		}
@@ -262,10 +231,6 @@ class Storage
 			try { if (onProgress != null) onProgress(1.0, "Up to date", "", 0, 0); } catch (_:Dynamic) {}
 			return;
 		}
-
-		try { if (onProgress != null) onProgress(0.0, "Loading libraries...", "", 0, 0); } catch (_:Dynamic) {}
-
-		ensureAllLibrariesLoaded();
 
 		extractedFiles = 0;
 		skippedFiles   = 0;
