@@ -447,7 +447,6 @@ class Main extends Sprite
 			return;
 		}
 
-		#if !mobile
 		try
 		{
 			fpsVar = new FPS(10, 3, 0xFFFFFF);
@@ -455,7 +454,6 @@ class Main extends Sprite
 			if (fpsVar != null) fpsVar.visible = ClientPrefs.showFPS;
 		}
 		catch (_:Dynamic) {}
-		#end
 
 		#if (html5 || mobile)
 		try { FlxG.autoPause     = false; } catch (_:Dynamic) {}
