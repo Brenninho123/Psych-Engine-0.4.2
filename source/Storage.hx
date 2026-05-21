@@ -32,12 +32,6 @@ class Storage
 	static final VERSION_FILE:String = ".version";
 	static final APP_VERSION:String  = "0.4.2";
 
-	static final LIBS:Array<String> = [
-		"assets", "shared",
-		"week2", "week3", "week4", "week5", "week6",
-		"mods"
-	];
-
 	static final SCAN_TYPES:Array<AssetType> = [
 		AssetType.TEXT,
 		AssetType.IMAGE,
@@ -45,6 +39,11 @@ class Storage
 		AssetType.MUSIC,
 		AssetType.BINARY,
 		AssetType.FONT
+	];
+
+	static final KNOWN_PREFIXES:Array<String> = [
+		"assets/",
+		"mods/"
 	];
 
 	public static function init(?onProgress:Float->String->String->Int->Int->Void):Void
@@ -84,46 +83,7 @@ class Storage
 		catch (_:Dynamic) {}
 	}
 
-	static function resolveExternalDataPath():String
-	{
-		try
-		{
-			var r:String = AndroidContext.getExternalFilesDir();
-			if (r != null && r.length > 0) return r;
-		}
-		catch (_:Dynamic) {}
-		return "/sdcard/Android/data/com.shadowmario.psychengine042/files";
-	}
-
-	static function destForLib(lib:String):String
-	{
-		return switch (lib)
-		{
-			case "assets": assetsPath;
-			case "mods":   modsPath;
-			default:       '${assetsPath}/${lib}';
-		};
-	}
-
-	static function mkdirSafe(paths:Array<String>):Void
-	{
-		for (p in paths)
-			try { if (!FileSystem.exists(p)) FileSystem.createDirectory(p); }
-			catch (_:Dynamic) {}
-	}
-
-	static function mkdirForFile(filePath:String):Void
-	{
-		try
-		{
-			var dir = HxPath.directory(filePath);
-			if (dir != null && dir.length > 0 && !FileSystem.exists(dir))
-				FileSystem.createDirectory(dir);
-		}
-		catch (_:Dynamic) {}
-	}
-
-	static function needsWrite(destPath:String, bytes:Bytes):Bool
+	public static function needsWrite(destPath:String, bytes:Bytes):Bool
 	{
 		try
 		{
@@ -135,35 +95,106 @@ class Storage
 		return true;
 	}
 
-	static function scanAllKeys():Array<String>
+	static function resolveExternalDataPath():String
 	{
-		var seen = new Map<String, Bool>();
-		var keys = new Array<String>();
+		try
+		{
+			var r:String = AndroidContext.getExternalFilesDir();
+			if (r != null && r.length > 0) return r;
+		}
+		catch (_:Dynamic) {}
+		return "/sdcard/Android/data/com.shadowmario.psychengine042/files";
+	}
+
+	static function mkdirSafe(dirs:Array<String>):Void
+	{
+		for (d in dirs)
+			try { if (!FileSystem.exists(d)) FileSystem.createDirectory(d); }
+			catch (_:Dynamic) {}
+	}
+
+	static function mkdirForFile(path:String):Void
+	{
+		try
+		{
+			var d = HxPath.directory(path);
+			if (d != null && d.length > 0 && !FileSystem.exists(d))
+				FileSystem.createDirectory(d);
+		}
+		catch (_:Dynamic) {}
+	}
+
+	// Normaliza a key: remove prefixo "lib:" se existir, retorna o path real no APK
+	static function normalizePath(key:String):Null<String>
+	{
+		if (key == null || key.length == 0) return null;
+		var p = key;
+		var ci = p.indexOf(":");
+		if (ci > 0) p = p.substr(ci + 1);
+		p = p.replace("\\", "/");
+		while (p.startsWith("/")) p = p.substr(1);
+		return p;
+	}
+
+	// Retorna o path de destino externo a partir do path real do APK
+	static function destPath(normalizedKey:String):Null<String>
+	{
+		if (normalizedKey.startsWith("assets/"))
+			return '${storagePath}/${normalizedKey}';
+		if (normalizedKey.startsWith("mods/"))
+			return '${storagePath}/${normalizedKey}';
+		return null;
+	}
+
+	// Label de progresso baseado no subdiretório real
+	static function labelFor(normalizedKey:String):String
+	{
+		if (normalizedKey.startsWith("assets/characters/")) return "Characters";
+		if (normalizedKey.startsWith("assets/data/"))       return "Data";
+		if (normalizedKey.startsWith("assets/fonts/"))      return "Fonts";
+		if (normalizedKey.startsWith("assets/images/"))     return "Images";
+		if (normalizedKey.startsWith("assets/music/"))      return "Music";
+		if (normalizedKey.startsWith("assets/songs/"))      return "Songs";
+		if (normalizedKey.startsWith("assets/sounds/"))     return "Sounds";
+		if (normalizedKey.startsWith("assets/stages/"))     return "Stages";
+		if (normalizedKey.startsWith("assets/weeks/"))      return "Weeks";
+		if (normalizedKey.startsWith("assets/shared/"))     return "Shared";
+		if (normalizedKey.startsWith("assets/week2/"))      return "Week 2";
+		if (normalizedKey.startsWith("assets/week3/"))      return "Week 3";
+		if (normalizedKey.startsWith("assets/week4/"))      return "Week 4";
+		if (normalizedKey.startsWith("assets/week5/"))      return "Week 5";
+		if (normalizedKey.startsWith("assets/week6/"))      return "Week 6";
+		if (normalizedKey.startsWith("mods/"))              return "Mods";
+		return "Assets";
+	}
+
+	static function scanAllKeys():Array<{key:String, norm:String}>
+	{
+		var seen   = new Map<String, Bool>();
+		var result = new Array<{key:String, norm:String}>();
+
+		function add(k:String):Void
+		{
+			if (k == null || k.length == 0) return;
+			var norm = normalizePath(k);
+			if (norm == null || seen.exists(norm)) return;
+			if (destPath(norm) == null) return;
+			seen.set(norm, true);
+			result.push({key: k, norm: norm});
+		}
 
 		for (type in SCAN_TYPES)
 		{
 			var list:Array<String> = [];
 			try { list = OpenFlAssets.list(type); } catch (_:Dynamic) {}
-
-			for (k in list)
-				if (k != null && k.length > 0 && !seen.exists(k))
-				{
-					seen.set(k, true);
-					keys.push(k);
-				}
+			for (k in list) add(k);
 		}
 
-		var listAll:Array<String> = [];
-		try { listAll = OpenFlAssets.list(); } catch (_:Dynamic) {}
+		var all:Array<String> = [];
+		try { all = OpenFlAssets.list(); } catch (_:Dynamic) {}
+		for (k in all) add(k);
 
-		for (k in listAll)
-			if (k != null && k.length > 0 && !seen.exists(k))
-			{
-				seen.set(k, true);
-				keys.push(k);
-			}
-
-		return keys;
+		return result;
 	}
 
 	static function runExtraction(?onProgress:Float->String->String->Int->Int->Void):Void
@@ -183,44 +214,26 @@ class Storage
 		skippedFiles   = 0;
 		errorFiles     = 0;
 
-		var allKeys = scanAllKeys();
-
-		var queue:Array<{key:String, dest:String, label:String}> = [];
-
-		for (lib in LIBS)
-		{
-			var dest  = destForLib(lib);
-			var label = lib.charAt(0).toUpperCase() + lib.substr(1);
-
-			for (key in allKeys)
-			{
-				var matchColon = key.startsWith(lib + ":");
-				var matchSlash = key.startsWith(lib + "/");
-				if (!matchColon && !matchSlash) continue;
-
-				var clean = matchColon ? key.substr(lib.length + 1) : key.substr(lib.length + 1);
-				if (clean == null || clean.length == 0) continue;
-
-				queue.push({ key: key, dest: '${dest}/${clean}', label: label });
-			}
-		}
-
+		var queue = scanAllKeys();
 		totalFiles = queue.length;
 		var done   = 0;
 
 		for (item in queue)
 		{
 			done++;
+			var dest  = destPath(item.norm);
+			var label = labelFor(item.norm);
+			var name  = HxPath.withoutDirectory(item.norm);
+			var pct   = totalFiles > 0 ? done / totalFiles : 1.0;
 
-			var pct  = totalFiles > 0 ? done / totalFiles : 1.0;
-			var name = HxPath.withoutDirectory(item.dest);
-
-			try { if (onProgress != null) onProgress(pct, item.label, name, done, totalFiles); }
+			try { if (onProgress != null) onProgress(pct, label, name, done, totalFiles); }
 			catch (_:Dynamic) {}
+
+			if (dest == null) continue;
 
 			try
 			{
-				mkdirForFile(item.dest);
+				mkdirForFile(dest);
 
 				var bytes:Bytes = null;
 				try { bytes = OpenFlAssets.getBytes(item.key); } catch (_:Dynamic) {}
@@ -231,13 +244,13 @@ class Storage
 					continue;
 				}
 
-				if (!needsWrite(item.dest, bytes))
+				if (!needsWrite(dest, bytes))
 				{
 					skippedFiles++;
 					continue;
 				}
 
-				File.saveBytes(item.dest, bytes);
+				File.saveBytes(dest, bytes);
 				extractedFiles++;
 			}
 			catch (_:Dynamic) { errorFiles++; }
