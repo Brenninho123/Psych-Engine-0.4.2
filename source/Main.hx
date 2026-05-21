@@ -382,7 +382,7 @@ class Main extends Sprite
 				libTF.text      = err.length > 0 ? "Error — continuing" : lib;
 				fileTF.text     = file.length > 62 ? '...${file.substr(file.length - 59)}' : file;
 				countTF.text    = cur > 0 ? '${cur} / ${total} files' : "";
-				totalScanTF.text = Storage.totalFiles > 0 ? '${Storage.totalFiles} total assets detected' : "";
+				totalScanTF.text = Storage.totalFiles > 0 ? '${Storage.totalFiles} assets detected  ·  ${Storage.extractedFiles + Storage.skippedFiles} processed' : "";
 			}
 			catch (_:Dynamic) {}
 
