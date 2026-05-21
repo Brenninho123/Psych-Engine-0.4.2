@@ -15,6 +15,7 @@ import openfl.text.TextField;
 import openfl.text.TextFormat;
 import openfl.text.TextFieldAutoSize;
 #if android
+import lime.utils.Assets as LimeAssets;
 import sys.thread.Thread;
 import sys.thread.Mutex;
 import sys.io.File;
@@ -37,6 +38,10 @@ class Main extends Sprite
 	public static var fpsVar:FPS;
 	public static var instance:Main;
 
+	static final NAMED_LIBS:Array<String> = [
+		"shared", "week2", "week3", "week4", "week5", "week6"
+	];
+
 	public static function main():Void
 	{
 		try { Lib.current.addChild(new Main()); } catch (_:Dynamic) {}
@@ -58,7 +63,6 @@ class Main extends Sprite
 	{
 		try { if (hasEventListener(Event.ADDED_TO_STAGE)) removeEventListener(Event.ADDED_TO_STAGE, init); }
 		catch (_:Dynamic) {}
-
 		setupCrashHandler();
 		setupGame();
 	}
@@ -132,19 +136,18 @@ class Main extends Sprite
 			bg.graphics.endFill();
 			panel.addChild(bg);
 
-			function addLabel(text:String, size:Int, col:UInt, yPos:Float, bold:Bool = false, selectable:Bool = false):TextField
+			function addLabel(text:String, size:Int, col:UInt, yPos:Float, bold:Bool = false):Void
 			{
 				var t = new TextField();
 				t.defaultTextFormat = new TextFormat("_sans", size, col, bold);
 				t.autoSize   = TextFieldAutoSize.CENTER;
-				t.selectable = selectable;
+				t.selectable = false;
 				t.wordWrap   = false;
 				t.width      = sw;
 				t.x          = 0;
 				t.y          = yPos;
 				t.text       = text;
 				panel.addChild(t);
-				return t;
 			}
 
 			addLabel("CRASH!", 52, 0xFF2222, sh * 0.05, true);
@@ -230,7 +233,7 @@ class Main extends Sprite
 		addChild(titleTF);
 
 		var subTF = mktf(15, 0x666666);
-		subTF.text = "Preparing files...";
+		subTF.text = "Loading libraries...";
 		subTF.y    = titleTF.y + 52;
 		addChild(subTF);
 
@@ -268,10 +271,10 @@ class Main extends Sprite
 		countTF.y    = fileTF.y + 20;
 		addChild(countTF);
 
-		var totalScanTF = mktf(12, 0x2A2A2A);
-		totalScanTF.text = "";
-		totalScanTF.y    = countTF.y + 18;
-		addChild(totalScanTF);
+		var detectedTF = mktf(12, 0x2A2A2A);
+		detectedTF.text = "";
+		detectedTF.y    = countTF.y + 18;
+		addChild(detectedTF);
 
 		var statusTF = mktf(14, 0x44CC66);
 		statusTF.text    = "";
@@ -279,87 +282,8 @@ class Main extends Sprite
 		statusTF.y       = sh * 0.76;
 		addChild(statusTF);
 
-		var mutex = new Mutex();
-		var s = {
-			pct:    0.0,
-			lib:    "",
-			file:   "",
-			cur:    0,
-			total:  0,
-			status: "",
-			err:    "",
-			done:   false
-		};
-
-		Thread.create(function()
+		function drawBar(pct:Float, smooth:Float):Void
 		{
-			try
-			{
-				Storage.init(function(pct:Float, lib:String, file:String, cur:Int, total:Int)
-				{
-					try
-					{
-						mutex.acquire();
-						s.pct   = pct;
-						s.lib   = lib;
-						s.file  = file;
-						s.cur   = cur;
-						s.total = total;
-						mutex.release();
-					}
-					catch (_:Dynamic) {}
-				});
-
-				mutex.acquire();
-				s.status = '${Storage.extractedFiles} extracted  ·  ${Storage.skippedFiles} unchanged  ·  ${Storage.errorFiles} errors';
-				s.done   = true;
-				mutex.release();
-			}
-			catch (e:Dynamic)
-			{
-				try
-				{
-					writeCrashLog("Storage.init\n" + e);
-					mutex.acquire();
-					s.err  = Std.string(e);
-					s.done = true;
-					mutex.release();
-				}
-				catch (_:Dynamic) {}
-			}
-		});
-
-		var smooth:Float = 0;
-		var onFrame:Event->Void = null;
-		onFrame = function(_)
-		{
-			var pct    = 0.0;
-			var lib    = "";
-			var file   = "";
-			var cur    = 0;
-			var total  = 0;
-			var status = "";
-			var err    = "";
-			var done   = false;
-
-			try
-			{
-				mutex.acquire();
-				pct    = s.pct;
-				lib    = s.lib;
-				file   = s.file;
-				cur    = s.cur;
-				total  = s.total;
-				status = s.status;
-				err    = s.err;
-				done   = s.done;
-				mutex.release();
-			}
-			catch (_:Dynamic) {}
-
-			smooth += (pct - smooth) * 0.10;
-			if (pct >= 1.0) smooth = 1.0;
-
 			try
 			{
 				barFill.graphics.clear();
@@ -375,14 +299,147 @@ class Main extends Sprite
 				}
 			}
 			catch (_:Dynamic) {}
+		}
+
+		var libsLoaded  = 0;
+		var libsTotal   = NAMED_LIBS.length;
+		var libSmooth   = 0.0;
+
+		var mutex  = new Mutex();
+		var xstate = {
+			pct:    0.0,
+			lib:    "",
+			file:   "",
+			cur:    0,
+			total:  0,
+			status: "",
+			err:    "",
+			phase:  0,  // 0=loading libs, 1=extracting, 2=done
+		};
+
+		function startExtraction():Void
+		{
+			try
+			{
+				mutex.acquire();
+				xstate.phase = 1;
+				mutex.release();
+			}
+			catch (_:Dynamic) {}
+
+			Thread.create(function()
+			{
+				try
+				{
+					Storage.init(function(pct:Float, lib:String, file:String, cur:Int, total:Int)
+					{
+						try
+						{
+							mutex.acquire();
+							xstate.pct   = pct;
+							xstate.lib   = lib;
+							xstate.file  = file;
+							xstate.cur   = cur;
+							xstate.total = total;
+							mutex.release();
+						}
+						catch (_:Dynamic) {}
+					});
+
+					mutex.acquire();
+					xstate.status = '${Storage.extractedFiles} extracted  ·  ${Storage.skippedFiles} unchanged  ·  ${Storage.errorFiles} errors';
+					xstate.phase  = 2;
+					mutex.release();
+				}
+				catch (e:Dynamic)
+				{
+					try
+					{
+						writeCrashLog("Storage.init\n" + e);
+						mutex.acquire();
+						xstate.err   = Std.string(e);
+						xstate.phase = 2;
+						mutex.release();
+					}
+					catch (_:Dynamic) {}
+				}
+			});
+		}
+
+		function onLibLoaded():Void
+		{
+			libsLoaded++;
+			if (libsLoaded >= libsTotal) startExtraction();
+		}
+
+		for (name in NAMED_LIBS)
+		{
+			try
+			{
+				LimeAssets.loadLibrary(name)
+					.onComplete(function(_) onLibLoaded())
+					.onError(function(_)   onLibLoaded());
+			}
+			catch (_:Dynamic) { onLibLoaded(); }
+		}
+
+		var smooth = 0.0;
+
+		var onFrame:Event->Void = null;
+		onFrame = function(_)
+		{
+			var phase  = 0;
+			var pct    = 0.0;
+			var lib    = "";
+			var file   = "";
+			var cur    = 0;
+			var total  = 0;
+			var status = "";
+			var err    = "";
+
+			try
+			{
+				mutex.acquire();
+				phase  = xstate.phase;
+				pct    = xstate.pct;
+				lib    = xstate.lib;
+				file   = xstate.file;
+				cur    = xstate.cur;
+				total  = xstate.total;
+				status = xstate.status;
+				err    = xstate.err;
+				mutex.release();
+			}
+			catch (_:Dynamic) {}
+
+			if (phase == 0)
+			{
+				libSmooth += ((libsLoaded / libsTotal) - libSmooth) * 0.12;
+				drawBar(libsLoaded / libsTotal, libSmooth);
+				try
+				{
+					subTF.text  = 'Loading libraries  ${libsLoaded} / ${libsTotal}';
+					pctTF.text  = Std.int(libSmooth * 50) + "%";
+				}
+				catch (_:Dynamic) {}
+				return;
+			}
+
+			smooth += (pct - smooth) * 0.10;
+			if (pct >= 1.0) smooth = 1.0;
+
+			drawBar(pct, smooth);
 
 			try
 			{
 				pctTF.text      = total > 0 ? Std.int(smooth * 100) + "%" : "";
+				subTF.text      = "Extracting files...";
 				libTF.text      = err.length > 0 ? "Error — continuing" : lib;
 				fileTF.text     = file.length > 62 ? '...${file.substr(file.length - 59)}' : file;
 				countTF.text    = cur > 0 ? '${cur} / ${total} files' : "";
-				totalScanTF.text = Storage.totalFiles > 0 ? '${Storage.totalFiles} assets detected  ·  ${Storage.extractedFiles + Storage.skippedFiles} processed' : "";
+				detectedTF.text = Storage.totalFiles > 0
+					? '${Storage.totalFiles} assets detected  ·  ${Storage.extractedFiles + Storage.skippedFiles} processed'
+					: "";
 			}
 			catch (_:Dynamic) {}
 
@@ -401,12 +458,12 @@ class Main extends Sprite
 			}
 			catch (_:Dynamic) {}
 
-			if (done)
+			if (phase == 2)
 			{
 				try { stage.removeEventListener(Event.ENTER_FRAME, onFrame); } catch (_:Dynamic) {}
 				haxe.Timer.delay(function()
 				{
-					for (c in [totalScanTF, statusTF, countTF, fileTF, libTF, pctTF, barFill, barBg, subTF, titleTF, bg])
+					for (c in [detectedTF, statusTF, countTF, fileTF, libTF, pctTF, barFill, barBg, subTF, titleTF, bg])
 						try { removeChild(c); } catch (_:Dynamic) {}
 					finishSetup();
 				}, 350);
