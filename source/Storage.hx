@@ -237,7 +237,7 @@ class Storage
 		for (ltype in LIME_TYPES)
 		{
 			var list:Array<String> = [];
-			try { list = LimeAssets.list(ltype); } catch (_:Dynamic) {}
+			try { list = LimeAssets.list((ltype : lime.utils.AssetType)); } catch (_:Dynamic) {}
 			for (k in list)
 			{
 				var norm = resolveNorm(k, "assets");
@@ -245,7 +245,7 @@ class Storage
 			}
 		}
 		var allLime:Array<String> = [];
-		try { allLime = LimeAssets.list(); } catch (_:Dynamic) {}
+		try { allLime = LimeAssets.list(null); } catch (_:Dynamic) {}
 		for (k in allLime)
 		{
 			var norm = resolveNorm(k, "assets");
