@@ -52,7 +52,7 @@ class Storage
 		AssetType.FONT
 	];
 
-	static final LIME_TYPES:Array<String> = [
+	static final LIME_TYPES:Array<lime.utils.AssetType> = [
 		"TEXT", "IMAGE", "SOUND", "MUSIC", "BINARY", "FONT"
 	];
 
@@ -237,7 +237,7 @@ class Storage
 		for (ltype in LIME_TYPES)
 		{
 			var list:Array<String> = [];
-			try { list = LimeAssets.list((ltype : lime.utils.AssetType)); } catch (_:Dynamic) {}
+			try { list = LimeAssets.list(ltype); } catch (_:Dynamic) {}
 			for (k in list)
 			{
 				var norm = resolveNorm(k, "assets");
