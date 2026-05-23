@@ -33,12 +33,17 @@ class Storage
 	static final VERSION_FILE:String = ".version";
 	static final APP_VERSION:String  = "0.4.2";
 
-	static final ALL_LIB_NAMES:Array<String> = [
-		"default", "shared",
-		"week2", "week3", "week4", "week5", "week6"
+	static final ALL_LIBS:Array<{name:String, base:String}> = [
+		{ name: "default", base: "assets"        },
+		{ name: "shared",  base: "assets/shared"  },
+		{ name: "week2",   base: "assets/week2"   },
+		{ name: "week3",   base: "assets/week3"   },
+		{ name: "week4",   base: "assets/week4"   },
+		{ name: "week5",   base: "assets/week5"   },
+		{ name: "week6",   base: "assets/week6"   }
 	];
 
-	static final SCAN_TYPES:Array<AssetType> = [
+	static final OPENFL_TYPES:Array<AssetType> = [
 		AssetType.TEXT,
 		AssetType.IMAGE,
 		AssetType.SOUND,
@@ -129,18 +134,25 @@ class Storage
 		catch (_:Dynamic) {}
 	}
 
-	static function normalizePath(key:String):Null<String>
+	static function resolveNorm(key:String, libBase:String):Null<String>
 	{
 		if (key == null || key.length == 0) return null;
+
 		var p = key;
+
 		var ci = p.indexOf(":");
 		if (ci > 0) p = p.substr(ci + 1);
+
 		p = p.replace("\\", "/");
 		while (p.startsWith("/")) p = p.substr(1);
-		return p;
+
+		if (!p.startsWith("assets/") && !p.startsWith("mods/"))
+			p = '${libBase}/${p}';
+
+		return (p.length > 0) ? p : null;
 	}
 
-	static function destForNormalized(norm:String):Null<String>
+	static function destForNorm(norm:String):Null<String>
 	{
 		if (norm.startsWith("assets/")) return '${storagePath}/${norm}';
 		if (norm.startsWith("mods/"))   return '${storagePath}/${norm}';
@@ -149,6 +161,12 @@ class Storage
 
 	static function labelFor(norm:String):String
 	{
+		if (norm.startsWith("assets/shared/"))     return "Shared";
+		if (norm.startsWith("assets/week2/"))      return "Week 2";
+		if (norm.startsWith("assets/week3/"))      return "Week 3";
+		if (norm.startsWith("assets/week4/"))      return "Week 4";
+		if (norm.startsWith("assets/week5/"))      return "Week 5";
+		if (norm.startsWith("assets/week6/"))      return "Week 6";
 		if (norm.startsWith("assets/characters/")) return "Characters";
 		if (norm.startsWith("assets/data/"))       return "Data";
 		if (norm.startsWith("assets/fonts/"))      return "Fonts";
@@ -158,60 +176,111 @@ class Storage
 		if (norm.startsWith("assets/sounds/"))     return "Sounds";
 		if (norm.startsWith("assets/stages/"))     return "Stages";
 		if (norm.startsWith("assets/weeks/"))      return "Weeks";
-		if (norm.startsWith("assets/shared/"))     return "Shared";
-		if (norm.startsWith("assets/week2/"))      return "Week 2";
-		if (norm.startsWith("assets/week3/"))      return "Week 3";
-		if (norm.startsWith("assets/week4/"))      return "Week 4";
-		if (norm.startsWith("assets/week5/"))      return "Week 5";
-		if (norm.startsWith("assets/week6/"))      return "Week 6";
 		if (norm.startsWith("mods/"))              return "Mods";
 		return "Assets";
 	}
 
-	static function scanAllKeys():Array<{key:String, norm:String}>
+	static function fetchBytes(key:String, libName:String, norm:String):Null<Bytes>
+	{
+		var candidates = [
+			key,
+			norm,
+			'assets/${norm}',
+			libName == "default" ? norm : '${libName}:${norm.substr(libName.length + 8)}'
+		];
+
+		for (k in candidates)
+		{
+			if (k == null || k.length == 0) continue;
+			var b:Bytes = null;
+			try { b = OpenFlAssets.getBytes(k); } catch (_:Dynamic) {}
+			if (b != null) return b;
+			try { b = LimeAssets.getBytes(k); } catch (_:Dynamic) {}
+			if (b != null) return b;
+		}
+		return null;
+	}
+
+	static function scanAllKeys():Array<{key:String, norm:String, lib:String}>
 	{
 		var seen   = new Map<String, Bool>();
-		var result = new Array<{key:String, norm:String}>();
+		var result = new Array<{key:String, norm:String, lib:String}>();
 
-		function add(k:String):Void
+		function add(key:String, norm:String, lib:String):Void
 		{
-			if (k == null || k.length == 0) return;
-			var norm = normalizePath(k);
 			if (norm == null || norm.length == 0) return;
 			if (seen.exists(norm)) return;
-			if (destForNormalized(norm) == null) return;
+			if (destForNorm(norm) == null) return;
 			seen.set(norm, true);
-			result.push({key: k, norm: norm});
+			result.push({key: key, norm: norm, lib: lib});
 		}
 
-		for (type in SCAN_TYPES)
+		for (type in OPENFL_TYPES)
 		{
 			var list:Array<String> = [];
 			try { list = OpenFlAssets.list(type); } catch (_:Dynamic) {}
-			for (k in list) add(k);
+			for (k in list)
+			{
+				var norm = resolveNorm(k, "assets");
+				if (norm != null) add(k, norm, "openfl");
+			}
 		}
 
-		var all:Array<String> = [];
-		try { all = OpenFlAssets.list(); } catch (_:Dynamic) {}
-		for (k in all) add(k);
+		var allOF:Array<String> = [];
+		try { allOF = OpenFlAssets.list(); } catch (_:Dynamic) {}
+		for (k in allOF)
+		{
+			var norm = resolveNorm(k, "assets");
+			if (norm != null) add(k, norm, "openfl");
+		}
 
-		for (name in ALL_LIB_NAMES)
+		for (ltype in LIME_TYPES)
+		{
+			var list:Array<String> = [];
+			try { list = LimeAssets.list(ltype); } catch (_:Dynamic) {}
+			for (k in list)
+			{
+				var norm = resolveNorm(k, "assets");
+				if (norm != null) add(k, norm, "lime");
+			}
+		}
+		var allLime:Array<String> = [];
+		try { allLime = LimeAssets.list(); } catch (_:Dynamic) {}
+		for (k in allLime)
+		{
+			var norm = resolveNorm(k, "assets");
+			if (norm != null) add(k, norm, "lime");
+		}
+
+		for (entry in ALL_LIBS)
 		{
 			try
 			{
-				var lib = LimeAssets.getLibrary(name);
+				var lib = LimeAssets.getLibrary(entry.name);
 				if (lib == null) continue;
 
-				for (ltype in LIME_TYPES)
-				{
-					var list:Array<String> = [];
-					try { list = lib.list(ltype); } catch (_:Dynamic) {}
-					for (k in list) add(k);
-				}
+				var libKeys:Array<String> = [];
 
-				var listAll:Array<String> = [];
-				try { listAll = lib.list(cast null); } catch (_:Dynamic) {}
-				for (k in listAll) add(k);
+				for (ltype in LIME_TYPES)
+					try
+					{
+						var l:Array<String> = (lib : Dynamic).list(ltype);
+						if (l != null) for (k in l) if (k != null) libKeys.push(k);
+					}
+					catch (_:Dynamic) {}
+
+				try
+				{
+					var l:Array<String> = (lib : Dynamic).list(null);
+					if (l != null) for (k in l) if (k != null) libKeys.push(k);
+				}
+				catch (_:Dynamic) {}
+
+				for (k in libKeys)
+				{
+					var norm = resolveNorm(k, entry.base);
+					if (norm != null) add(k, norm, entry.name);
+				}
 			}
 			catch (_:Dynamic) {}
 		}
@@ -243,7 +312,7 @@ class Storage
 		for (item in queue)
 		{
 			done++;
-			var dest  = destForNormalized(item.norm);
+			var dest  = destForNorm(item.norm);
 			var label = labelFor(item.norm);
 			var name  = HxPath.withoutDirectory(item.norm);
 			var pct   = totalFiles > 0 ? done / totalFiles : 1.0;
@@ -257,8 +326,7 @@ class Storage
 			{
 				mkdirForFile(dest);
 
-				var bytes:Bytes = null;
-				try { bytes = OpenFlAssets.getBytes(item.key); } catch (_:Dynamic) {}
+				var bytes = fetchBytes(item.key, item.lib, item.norm);
 
 				if (bytes == null)
 				{
