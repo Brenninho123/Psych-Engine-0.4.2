@@ -162,18 +162,6 @@ class Paths
 			return customSoundsLoaded.get(file);
 		}
 		#end
-		#if android
-		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
-		{
-			var extPath = '${Storage.assetsPath}/sounds/${key}.${SOUND_EXT}';
-			if (sys.FileSystem.exists(extPath))
-			{
-				if (!customSoundsLoaded.exists(extPath))
-					customSoundsLoaded.set(extPath, Sound.fromFile(extPath));
-				return customSoundsLoaded.get(extPath);
-			}
-		}
-		#end
 		return getPath('sounds/$key.$SOUND_EXT', SOUND, library);
 	}
 
@@ -191,18 +179,6 @@ class Paths
 			if (!customSoundsLoaded.exists(file))
 				customSoundsLoaded.set(file, Sound.fromFile(file));
 			return customSoundsLoaded.get(file);
-		}
-		#end
-		#if android
-		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
-		{
-			var extPath = '${Storage.assetsPath}/music/${key}.${SOUND_EXT}';
-			if (sys.FileSystem.exists(extPath))
-			{
-				if (!customSoundsLoaded.exists(extPath))
-					customSoundsLoaded.set(extPath, Sound.fromFile(extPath));
-				return customSoundsLoaded.get(extPath);
-			}
 		}
 		#end
 		return getPath('music/$key.$SOUND_EXT', MUSIC, library);
@@ -246,14 +222,6 @@ class Paths
 		#if MODS_ALLOWED
 		var imageToReturn:FlxGraphic = addCustomGraphic(key);
 		if (imageToReturn != null) return imageToReturn;
-		#end
-		#if android
-		if (Storage.assetsPath != null && Storage.assetsPath.length > 0)
-		{
-			var sub = library != null && library != "preload" ? '${library}/images/${key}.png' : 'images/${key}.png';
-			var extPath = '${Storage.assetsPath}/${sub}';
-			if (sys.FileSystem.exists(extPath)) return extPath;
-		}
 		#end
 		return getPath('images/$key.png', IMAGE, library);
 	}
