@@ -53,7 +53,12 @@ class Storage
 	];
 
 	static final LIME_TYPES:Array<lime.utils.AssetType> = [
-		"TEXT", "IMAGE", "SOUND", "MUSIC", "BINARY", "FONT"
+		lime.utils.AssetType.TEXT,
+		lime.utils.AssetType.IMAGE,
+		lime.utils.AssetType.SOUND,
+		lime.utils.AssetType.MUSIC,
+		lime.utils.AssetType.BINARY,
+		lime.utils.AssetType.FONT
 	];
 
 	public static function init(?onProgress:Float->String->String->Int->Int->Void):Void
