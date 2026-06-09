@@ -1,12 +1,12 @@
 package;
 
 #if android
-import extension.androidtools.content.Context as AndroidContext;
-import extension.androidtools.os.Environment as AndroidEnvironment;
-import extension.androidtools.Settings as AndroidSettings;
-import extension.androidtools.Permissions as AndroidPermissions;
-import extension.androidtools.os.Build.VERSION as AndroidVersion;
-import extension.androidtools.os.Build.VERSION_CODES as AndroidVersionCode;
+import androidmanager.ContextManager as AndroidContext;
+import androidmanager.StorageManager as AndroidEnvironment;
+import androidmanager.SettingsManager as AndroidSettings;
+import androidmanager.PermissionManager as AndroidPermissions;
+import androidmanager.DeviceManager.VERSION as AndroidVersion;
+import androidmanager.DeviceManager.VERSION_CODES as AndroidVersionCode;
 import openfl.utils.AssetType;
 import openfl.utils.Assets as OpenFlAssets;
 import lime.utils.Assets as LimeAssets;
