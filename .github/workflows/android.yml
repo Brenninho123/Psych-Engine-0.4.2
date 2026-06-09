@@ -40,7 +40,7 @@ jobs:
           haxelib install flixel-ui            --quiet
           haxelib install hscript              --quiet
           haxelib run lime setup openfl
-          haxelib git extension-androidtools https://github.com/DeveloperPorting-Stuff/extension-androidtools --quiet
+          haxelib git android-manager https://github.com/DeveloperPorting-Stuff/android-manager --quiet
 
       - name: Cache NDK
         id: cache-ndk
